@@ -1,4 +1,10 @@
 major/core topics in cuda programming
+Core Concepts to Focus On:
+Kernels: Functions that run on the GPU, marked with the __global__ keyword.
+Thread Hierarchy: Understanding how threads are grouped into blocks and then into a grid.
+Memory Management: Moving data between the CPU (Host) and GPU (Device) using cudaMalloc and cudaMemcpy.
+Shared Memory: A small, fast memory space shared by threads within a block, crucial for performance optimization. 
+
 CUDA programming is built on a hierarchy of parallel execution and memory management. To master the platform, you should focus on these core pillars: 
 
 1. Fundamental Programming Model
