@@ -1,0 +1,70 @@
+CUDAThe Complete Course of CUDA Programming
+Learn GPU and Parallel Programming in a Professional way from Scratch. Become an expert in CUDA, from ZERO to HERO!
+*******************************************
+***********************
+1.Introduction to Parallel cmuting & CUDA programming
+Course introduction and overview
+Introduction to parallel computing and its relevance
+CUDA programming model
+Quiz
+
+2.CUDA Programming Basics
+Understanding threads, blocks, and grids in CUDA
+Installing & Setting the development environment (CUDA toolkit, GPU drivers...)
+The Code in C Programming in a Visual Manner
+C Code Overview
+C Code and Memory Overview
+
+
+3.CUDA Thread Execution
+Writing first lines of code
+Basic Debugging in CUDA programs
+Understanding Profiling
+Thread synchronization and barriers
+
+4.Memory Management and Optimization Techniques
+Memory coalescing and access patterns
+Optimizing memory transfers using asynchronous data transfer
+Utilizing constant and texture memory
+Managing large-scale data sets with CUDA
+
+5.Adavnced CUDA Programming techniques
+Managing multiple GPUs and multi-GPU communication
+Using CUDA libraries for common parallel algorithms (cuBLAS, cuFFT, etc.)
+Dynamic parallelism and recursive GPU programming
+Advanced optimization techniques (warp divergence, memory access patterns, etc.)
+
+
+6.CUDA Performance Analysis and Optimization
+Profiling CUDA applications using CUDA Profiler and NVIDIA Visual Profiler
+Fine-tuning CUDA kernels & Strategies for maximum parallelism and throughput
+Identifying performance bottlenecks and optimizing code
+
+7.CUDA CASE STUDY & Project
+CUDA Applications and case studies
+Real Time Project
+Course closure
+
+
+*******************
+Then, we'll cover a wide variety of topics, including:
+
+Introduction to CUDA, parallel computing and course dynamics
+
+Download and Install the development environment and needed software, and configuring it
+
+General familiarization with the user interface and CUDA essential commands
+
+CUDA Thread Execution: writing first lines of code, debugging, profiling and thread synchronization
+
+Memory Management and Memory Optimization Techniques
+
+Advanced CUDA Programming Techniques: managing multiple GPUs, libraries for parallel algorithms (cuBLAS, cuFFT...), dynamic paralellism, recursive GPU programming...
+
+Performance Analysis and Performance Optimization
+
+CUDA Applications, case studies and real time project
+
+Mastery and application of absolutely ALL the functionalities of CUDA and parallel and GPU programming
+
+Practical exercises, complete project and much more!
