@@ -234,3 +234,86 @@ Math functions that resemble those in math.h, which is included with standard C+
 Built-in functions for accessing specific GPU hardware capabilities
 
 *************************************************
+Introduction to the HIP programming model
+The HIP programming model enables mapping data-parallel C/C++ algorithms to massively parallel SIMD (Single Instruction, Multiple Data) architectures like GPUs. HIP supports many imperative languages, such as Python via PyHIP, but this document focuses on the original C/C++ API of HIP.
+
+While GPUs may be capable of running applications written for CPUs if properly ported and compiled, it would not be an efficient use of GPU resources. GPUs fundamentally differ from CPUs and should be used accordingly to achieve optimum performance. A basic understanding of the underlying device architecture helps you make efficient use of HIP and general purpose graphics processing unit (GPGPU) programming in general. The following topics introduce you to the key concepts of GPU-based programming and the HIP programming model.
+
+Hardware differences: CPU vs GPU
+CPUs and GPUs have been designed for different purposes. CPUs quickly execute a single thread, decreasing the time for a single operation while increasing the number of sequential instructions that can be executed. This includes fetching data and reducing pipeline stalls where the ALU has to wait for previous instructions to finish.
+<img width="522" height="317" alt="image" src="https://github.com/user-attachments/assets/165fa07c-863c-431a-abf5-3c55bfb304f8" />
+
+
+************
+Heterogeneous programming
+The HIP programming model has two execution contexts. The main application starts on the CPU, or the host processor, and compute kernels are launched on the device such as Instinct accelerators or AMD GPUs. The host execution is defined by the C++ abstract machine, while device execution follows the SIMT model of HIP. These two execution contexts are signified by the __host__ and __global__ (or __device__) decorators in HIP program code. There are a few key differences between the two contexts:
+
+The C++ abstract machine assumes a unified memory address space, meaning that one can always access any given address in memory (assuming the absence of data races). HIP however introduces several memory namespaces, an address from one means nothing in another. Moreover, not all address spaces are accessible from all contexts.
+
+Looking at the gcn_cu figure, you can see that every CU has an instance of storage backing the namespace __shared__. Even if the host were to have access to these regions of memory, the performance benefits of the segmented memory subsystem are supported by the inability of asynchronous access from the host.
+<img width="542" height="282" alt="image" src="https://github.com/user-attachments/assets/592fd598-b14f-471b-b601-693f2e4f54ec" />
+
+
+**Single instruction multiple threads (SIMT)
+The HIP kernel code, written as a series of scalar instructions for multiple threads with different thread indices, gets mapped to the SIMD units of the GPUs. Every single instruction, which is executed for every participating thread of a kernel, gets mapped to the SIMD.
+<img width="553" height="292" alt="image" src="https://github.com/user-attachments/assets/f85da0f0-30d6-4b6f-8927-4744e8eba271" />
+
+********
+Hierarchical thread model
+As previously discussed, all threads of a kernel are uniquely identified by a set of integral values called thread IDs. The hierarchy consists of three levels: thread, blocks, and grids.
+<img width="660" height="610" alt="image" src="https://github.com/user-attachments/assets/2e565543-7de3-4e18-8989-1186495e54bc" />
+
+
+****************
+Memory model
+<img width="611" height="321" alt="image" src="https://github.com/user-attachments/assets/9d88542b-b7e0-4dee-b12a-b8e38232c978" />
+
+
+***************
+Memory optimizations and best practices
+<img width="542" height="297" alt="image" src="https://github.com/user-attachments/assets/ca0138eb-0cf3-440f-bd8b-88069647fc54" />
+
+
+******************
+<img width="566" height="299" alt="image" src="https://github.com/user-attachments/assets/84264abd-f3f3-4e22-820e-0278ac38afea" />
+
+***************************
+Understanding GPU performance
+This chapter explains the theoretical foundations of GPU performance on AMD hardware. Understanding these concepts helps you analyze performance characteristics, identify bottlenecks, and make informed optimization decisions.
+
+For practical optimization techniques and step-by-step guidance, see Performance guidelines.
+
+Performance bottlenecks
+A performance bottleneck is the limiting factor that prevents a GPU kernel from achieving higher performance. The two primary categories are:
+
+Compute-bound: The kernel is limited by arithmetic throughput
+
+Memory-bound: The kernel is limited by memory bandwidth
+
+
+*********************
+Performance bottlenecks
+A performance bottleneck is the limiting factor that prevents a GPU kernel from achieving higher performance. The two primary categories are:
+
+Compute-bound: The kernel is limited by arithmetic throughput
+
+Memory-bound: The kernel is limited by memory bandwidth
+
+Understanding which category applies helps identify the appropriate op
+
+******************
+Hardware implementation
+This chapter describes the hardware architecture of AMD GPUs supported by HIP, focusing on the internal organization and operation of GPU hardware components. Understanding these hardware details helps you optimize GPU applications and achieve maximum performance.
+
+Overall GPU architecture
+AMD GPUs consist of interconnected blocks of digital circuits that work together to execute complex parallel computing tasks. The architecture is organized hierarchically to enable massive parallelism while managing resources efficiently.
+
+<img width="1528" height="665" alt="image" src="https://github.com/user-attachments/assets/c4d6d1ac-df5c-4462-b1f6-2844c9d2a470" />
+
+**********************
+<img width="1523" height="306" alt="image" src="https://github.com/user-attachments/assets/807c1ae2-39cb-4a12-9c6e-878a2fc2306d" />
+<img width="295" height="227" alt="image" src="https://github.com/user-attachments/assets/c1d80d62-f5a9-4bd5-b50e-1864028c8f6d" />
+<img width="822" height="1073" alt="image" src="https://github.com/user-attachments/assets/e2a70d75-364f-41fd-8357-0550d62f7a56" />
+<img width="826" height="372" alt="image" src="https://github.com/user-attachments/assets/0750791a-6d8e-44ce-b2c6-4f252de95767" />
+<img width="846" height="156" alt="image" src="https://github.com/user-attachments/assets/f80d7602-d3cb-4969-bec1-e399385126df" />
+<img width="1130" height="285" alt="image" src="https://github.com/user-attachments/assets/21be6933-1155-435b-a3c0-eb2393d58bed" />
