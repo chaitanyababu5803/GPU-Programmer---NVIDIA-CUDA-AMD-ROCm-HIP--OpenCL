@@ -69,3 +69,615 @@ CUDA Applications, case studies and real time project
 Mastery and application of absolutely ALL the functionalities of CUDA and parallel and GPU programming
 
 Practical exercises, complete project and much more!
+
+***************************************
+Parallel computing involves performing multiple calculations or tasks simultaneously. Unlike sequential computing, which executes instructions one after another on a single CPU core, parallel computing distributes a problem across multiple cores or processors to solve it faster. 
+Introduction to CUDA
+CUDA (Compute Unified Device Architecture) is a parallel computing platform and API created by NVIDIA. It allows developers to use NVIDIA GPUs (Graphics Processing Units) for general-purpose processing—a field known as GPGPU. 
+Heterogeneous Computing: CUDA programs use both the Host (CPU) and the Device (GPU). The CPU handles sequential logic and manages memory, while the GPU executes massive data-parallel tasks.
+The CUDA Model: Work is organized into a hierarchy: Grids consist of Blocks, and each block contains multiple Threads. A special function that runs on the GPU is called a Kernel. 
+Basic CUDA C++ Example: Vector Addition 
+This example demonstrates the typical CUDA workflow: allocating memory, moving data to the GPU, launching a parallel kernel, and copying results back. 
+cpp
+#include <iostream>
+#include <cuda_runtime.h> // NVIDIA CUDA Runtime headers
+
+// 1. Define the Kernel (runs on GPU)
+__global__ void add(int n, float *x, float *y) {
+    // Calculate global thread index
+    int index = blockIdx.x * blockDim.x + threadIdx.x;
+    int stride = blockDim.x * gridDim.x;
+    
+    // Grid-stride loop to handle any number of elements
+    for (int i = index; i < n; i += stride)
+        y[i] = x[i] + y[i];
+}
+
+int main() {
+    int N = 1 << 20; // 1 million elements
+    float *x, *y;
+
+    // 2. Allocate Unified Memory (accessible by both CPU and GPU)
+    // This simplifies manual data transfers for beginners
+    cudaMallocManaged(&x, N * sizeof(float));
+    cudaMallocManaged(&y, N * sizeof(float));
+
+    // 3. Initialize data on the Host (CPU)
+    for (int i = 0; i < N; i++) {
+        x[i] = 1.0f;
+        y[i] = 2.0f;
+    }
+
+    // 4. Launch Kernel on the Device (GPU)
+    // Using 256 threads per block
+    int blockSize = 256;
+    int numBlocks = (N + blockSize - 1) / blockSize;
+    add<<<numBlocks, blockSize>>>(N, x, y);
+
+    // 5. Synchronize: Wait for GPU to finish before CPU reads results
+    cudaDeviceSynchronize();
+
+    // 6. Check for errors
+    float maxError = 0.0f;
+    for (int i = 0; i < N; i++)
+        maxError = fmax(maxError, fabs(y[i] - 3.0f));
+    std::cout << "Max error: " << maxError << std::endl;
+
+    // 7. Free Memory
+    cudaFree(x);
+    cudaFree(y);
+
+    return 0;
+}
+Use code with caution.
+
+[Source: NVIDIA Developer Blog, 1.1.4, 1.5.3]
+How to Compile and Run
+To run this code, you need the CUDA Toolkit installed and a CUDA-capable NVIDIA GPU. 
+Save the file as add.cu.
+Compile using nvcc (the NVIDIA compiler):
+bash
+nvcc add.cu -o add_parallel
+Use code with caution.
+
+Run the executable:
+bash
+./add_parallel
+Use code with caution.
+
+
+****************************************
+ntroduction to Parallel cmuting & CUDA programming all topics with basic exmaple code each separate
+Parallel computing is the practice of breaking down a large problem into smaller parts that are executed simultaneously. CUDA (Compute Unified Device Architecture) is NVIDIA's platform that allows developers to use the massive power of GPUs (Graphics Processing Units) for general-purpose mathematical calculations. 
+1. The Core Concept: CPU vs. GPU
+To understand CUDA, you must understand the difference between the processors: 
+CPU (Host): A few powerful cores optimized for sequential serial processing (the "Manager").
+GPU (Device): Thousands of smaller, simpler cores designed for parallel throughput (the "Workforce"). 
+2. CUDA Memory Management
+Before a GPU can work, data must be moved from the System RAM (Host) to the GPU VRAM (Device). 
+Key Functions:
+cudaMalloc(): Allocates memory on the GPU.
+cudaMemcpy(): Transfers data between Host and Device.
+cudaFree(): Releases GPU memory. 
+Basic Example: Memory Transfer
+cpp
+float *d_data;
+int size = 100 * sizeof(float);
+
+// Allocate on GPU
+cudaMalloc((void**)&d_data, size);
+
+// Copy from CPU (h_data) to GPU (d_data)
+cudaMemcpy(d_data, h_data, size, cudaMemcpyHostToDevice);
+
+// Free memory
+cudaFree(d_data);
+Use code with caution.
+
+3. The Kernel and Hierarchy
+A Kernel is a function defined with __global__ that runs on the GPU. When you launch a kernel, you define a hierarchy: 
+Threads: The smallest unit of execution.
+Blocks: A group of threads.
+Grid: A group of blocks. 
+The Indexing Formula
+To know which piece of data a thread should work on, we use built-in variables:
+
+4. Example: Vector Addition
+This is the "Hello World" of CUDA. It adds two arrays (
+) in parallel. 
+cpp
+#include <iostream>
+
+// The Kernel: runs on the GPU
+__global__ void vectorAdd(int *a, int *b, int *c, int n) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < n) {
+        c[i] = a[i] + b[i];
+    }
+}
+
+int main() {
+    int n = 1024;
+    int size = n * sizeof(int);
+    int h_a[n], h_b[n], h_c[n]; // Host arrays
+
+    // Initialize data
+    for(int i=0; i<n; i++) { h_a[i] = i; h_b[i] = i; }
+
+    int *d_a, *d_b, *d_c; // Device pointers
+    cudaMalloc(&d_a, size);
+    cudaMalloc(&d_b, size);
+    cudaMalloc(&d_c, size);
+
+    cudaMemcpy(d_a, h_a, size, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_b, h_b, size, cudaMemcpyHostToDevice);
+
+    // Launch: 4 blocks of 256 threads each (4 * 256 = 1024)
+    vectorAdd<<<4, 256>>>(d_a, d_b, d_c, n);
+
+    cudaMemcpy(h_c, d_c, size, cudaMemcpyDeviceToHost);
+
+    std::cout << "Result at index 10: " << h_c[10] << std::endl; // Should be 20
+
+    cudaFree(d_a); cudaFree(d_b); cudaFree(d_c);
+    return 0;
+}
+Use code with caution.
+
+5. Shared Memory
+Standard GPU memory (Global Memory) is large but slow. Shared Memory is a small, ultra-fast memory space shared by all threads within the same block. It acts like a user-managed cache. 
+Example Usage:
+cpp
+__global__ void sharedExample(float *data) {
+    // Declared inside the kernel
+    __shared__ float temp[256]; 
+    
+    int tid = threadIdx.x;
+    temp[tid] = data[tid]; // Load into fast memory
+    
+    __syncthreads(); // Barrier: Wait for all threads to finish loading
+    
+    // Now perform calculations using temp...
+}
+Use code with caution.
+
+6. Unified Memory (Modern CUDA)
+Modern CUDA allows for Managed Memory, where the system automatically handles the movement of data between CPU and GPU using a single pointer. 
+Example:
+cpp
+float *data;
+// No need for separate h_data and d_data
+cudaMallocManaged(&data, size);
+
+// Use it on CPU
+data[0] = 10.0f;
+
+// Use it on GPU
+kernel<<<1, 1>>>(data);
+cudaDeviceSynchronize(); // Wait for GPU to finish before CPU reads
+Use code with caution.
+
+Summary Table
+Concept 	Description
+Host	The CPU and its memory.
+Device	The GPU and its memory.
+Kernel	A function marked __global__ that runs on the GPU.
+Thread	An individual parallel execution unit.
+Block	A collection of threads that can share memory.
+Grid	A collection of blocks launched for a single kernel.
+
+**********************************************
+CUDA Programming Basics
+Understanding threads, blocks, and grids in CUDA
+Installing & Setting the development environment (CUDA toolkit, GPU drivers...)
+The Code in C Programming in a Visual Manner
+C Code Overview
+C Code and Memory Overview
+each basic exmaple code separate with code each
+CUDA Programming Fundamentals
+CUDA (Compute Unified Device Architecture) is NVIDIA's parallel computing platform and API that allows you to use a GPU for general-purpose processing. 
+1. Threads, Blocks, and Grids 
+CUDA organizes parallel execution into a hierarchical structure to map computational tasks to GPU hardware efficiently. 
+Thread: The smallest unit of execution. Each thread runs a copy of the "kernel" function but handles different data elements.
+Block: A group of threads that execute together on a single Streaming Multiprocessor (SM). Threads in the same block can communicate via shared memory.
+Grid: A collection of blocks that execute the same kernel. Grids represent the entire problem space and can span millions of blocks. 
+Visual Mapping Variables:
+threadIdx.x: The ID of a thread within its block.
+blockIdx.x: The ID of the block within the grid.
+blockDim.x: The number of threads in a single block.
+gridDim.x: The number of blocks in the grid. 
+2. Environment Setup
+To develop with CUDA, follow these steps:
+Check GPU: Verify your NVIDIA GPU is CUDA-capable via Windows Device Manager or lspci on Linux.
+Install Drivers: Download the latest NVIDIA GPU Drivers.
+CUDA Toolkit: Download the CUDA Toolkit Installer. This includes the nvcc compiler and necessary libraries.
+IDE: Use Visual Studio (Windows) or VS Code with C++ extensions (Linux/Windows).
+Verify: Run nvcc --version in your terminal to ensure the compiler is recognized. 
+3. C Code & Memory Overview
+CUDA follows a Heterogeneous Model where the Host (CPU) manages data and launches Kernels (GPU functions). 
+Memory Type 	Location	Access	Speed
+Host Memory	RAM (CPU)	CPU Code	Standard
+Global Memory	VRAM (GPU)	All GPU Threads	Fast (but high latency)
+Shared Memory	On-Chip (GPU)	Same-Block Threads	Extremely Fast
+Standard Workflow:
+Allocate memory on CPU (malloc) and GPU (cudaMalloc).
+Copy data from CPU to GPU (cudaMemcpy with cudaMemcpyHostToDevice).
+Launch the kernel using <<<blocks, threads>>> syntax.
+Copy results back to CPU (cudaMemcpy with cudaMemcpyDeviceToHost).
+Free GPU memory (cudaFree). 
+Basic CUDA Examples
+Example 1: "Hello World" (Single Thread)
+This script launches exactly one thread to print a message from the GPU. 
+cpp
+#include <stdio.h>
+
+__global__ void hello_cuda() {
+    printf("Hello from GPU thread!\n");
+}
+
+int main() {
+    // Launch 1 block with 1 thread
+    hello_cuda<<<1, 1>>>(); 
+    
+    // Wait for GPU to finish before CPU proceeds
+    cudaDeviceSynchronize(); 
+    return 0;
+}
+Use code with caution.
+
+Example 2: Simple Vector Addition (1D Grid/Blocks)
+This demonstrates calculating a unique index for each thread to process an array. 
+cpp
+#include <stdio.h>
+
+__global__ void addVectors(float *a, float *b, float *c, int n) {
+    // Calculate global thread index
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < n) {
+        c[i] = a[i] + b[i];
+    }
+}
+
+int main() {
+    int N = 1024;
+    size_t size = N * sizeof(float);
+    float *h_a, *h_b, *h_c; // Host pointers
+    float *d_a, *d_b, *d_c; // Device pointers
+
+    // 1. Allocate Host Memory
+    h_a = (float*)malloc(size); h_b = (float*)malloc(size); h_c = (float*)malloc(size);
+
+    // 2. Allocate Device Memory
+    cudaMalloc(&d_a, size); cudaMalloc(&d_b, size); cudaMalloc(&d_c, size);
+
+    // 3. Copy to Device
+    cudaMemcpy(d_a, h_a, size, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_b, h_b, size, cudaMemcpyHostToDevice);
+
+    // 4. Launch Kernel: 4 blocks of 256 threads each (Total 1024 threads)
+    addVectors<<<4, 256>>>(d_a, d_b, d_c, N);
+
+    // 5. Copy Result Back to Host
+    cudaMemcpy(h_c, d_c, size, cudaMemcpyDeviceToHost);
+
+    // Clean up
+    cudaFree(d_a); cudaFree(d_b); cudaFree(d_c);
+    free(h_a); free(h_b); free(h_c);
+    return 0;
+}
+
+**************************************
+CUDA Thread Execution
+Writing first lines of code
+Basic Debugging in CUDA programs
+Understanding Profiling
+Thread synchronization and barriers::above concepts basic exmaple code seaparate each
+It’s exciting that you’re diving into CUDA! Moving from standard CPU programming to the massively parallel world of GPUs requires a shift in how you think about execution. 
+Here is a breakdown of those core concepts with concise, practical examples.
+1. CUDA Thread Execution
+In CUDA, you don't just call a function; you launch a kernel. This kernel is executed by many threads simultaneously. These threads are organized into Blocks, and Blocks are organized into a Grid. 
+threadIdx.x: The ID of the thread within its block.
+blockIdx.x: The ID of the block within the grid.
+blockDim.x: How many threads are in one block. 
+cpp
+__global__ void identifyThreads() {
+    // Calculating a unique global ID for each thread
+    int globalId = blockIdx.x * blockDim.x + threadIdx.x;
+    
+    printf("Block: %d, Thread: %d, Global ID: %d\n", 
+           blockIdx.x, threadIdx.x, globalId);
+}
+
+// Launching: 2 blocks of 4 threads each
+// identifyThreads<<<2, 4>>>();
+Use code with caution.
+
+2. Writing Your First Lines
+To get data to the GPU, you follow a specific pattern: Allocate memory on GPU, Copy data from CPU to GPU, Launch the kernel, and Copy results back. 
+cpp
+#include <iostream>
+
+__global__ void addOne(int *data) {
+    int i = threadIdx.x;
+    data[i] = data[i] + 1;
+}
+
+int main() {
+    int h_data[5] = {1, 2, 3, 4, 5}; // Host data
+    int *d_data;                     // Device pointer
+
+    cudaMalloc(&d_data, 5 * sizeof(int));
+    cudaMemcpy(d_data, h_data, 5 * sizeof(int), cudaMemcpyHostToDevice);
+
+    addOne<<<1, 5>>>(d_data);
+
+    cudaMemcpy(h_data, d_data, 5 * sizeof(int), cudaMemcpyDeviceToHost);
+    cudaFree(d_data);
+    
+    return 0;
+}
+Use code with caution.
+
+3. Basic Debugging
+GPU code is asynchronous and runs on separate hardware, so standard printf doesn't always work as expected, and errors often don't crash the program immediately. 
+Check Return Codes: Almost every CUDA function returns a cudaError_t.
+Synchronize: Use cudaDeviceSynchronize() after a kernel launch to catch errors immediately. 
+cpp
+cudaError_t err = cudaMalloc(&d_data, size);
+if (err != cudaSuccess) {
+    printf("CUDA Error: %s\n", cudaGetErrorString(err));
+}
+
+// Catching kernel launch errors
+kernel<<<1, 10>>>();
+err = cudaGetLastError(); 
+if (err != cudaSuccess) printf("Kernel error: %s\n", cudaGetErrorString(err));
+Use code with caution.
+
+4. Understanding Profiling
+Profiling is about finding bottlenecks (Is your code slow because of math or because of moving data?). 
+nvprof / Nsight Systems: These are the command-line tools used to track execution time.
+The "Null Kernel" Trick: To see the overhead of just launching a kernel, profile an empty function.
+Timeline: Profiling shows you the "gap" between the CPU sending a command and the GPU finishing it. 
+Tip: Always compile with optimization flags (like -O3) when profiling, otherwise you are measuring the "slow" version of your code.
+5. Thread Synchronization & Barriers
+Threads within the same block can communicate and wait for each other using __syncthreads(). This is a "barrier"—no thread can move past this line until every thread in that block has reached it. 
+cpp
+__global__ void sharedExample(int *data) {
+    __shared__ int temp[256];
+    int tid = threadIdx.x;
+
+    // Phase 1: All threads write to shared memory
+    temp[tid] = data[tid];
+
+    // BARRIER: Wait for all writes to finish
+    __syncthreads();
+
+    // Phase 2: Now it's safe to read what others wrote
+    if (tid > 0) {
+        data[tid] = temp[tid - 1]; // Shift data
+    }
+}
+Use code with caution.
+
+Comparison of Scopes
+Feature 	__syncthreads()	cudaDeviceSynchronize()
+Where it's called	Inside the Kernel (Device)	Inside the Main code (Host)
+Who it stops	Threads in a single Block	The entire CPU program
+Purpose	Data consistency between threads	Waiting for GPU to finish work
+
+*************************************************
+basic exmaple with code each separate ::Memory Management and Optimization Techniques
+Memory coalescing and access patterns
+Optimizing memory transfers using asynchronous data transfer
+Utilizing constant and texture memory
+Managing large-scale data sets with CUDA
+Optimizing memory in CUDA is all about aligning how data is stored with how the GPU hardware actually moves it. Here are basic code snippets for each key technique: 
+1. Memory Coalescing and Access Patterns 
+Coalescing ensures that when a warp of 32 threads requests memory, the GPU can satisfy it with a single transaction. This happens when threads access consecutive memory addresses. 
+cpp
+// OPTIMIZED: Coalesced Access
+__global__ void coalesced_kernel(float *data) {
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    // Threads 0, 1, 2... access indices 0, 1, 2...
+    float val = data[tid]; 
+}
+
+// POOR: Strided (Non-coalesced) Access
+__global__ void strided_kernel(float *data, int stride) {
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    // Threads 0, 1, 2... access indices 0, 32, 64... (causes many transactions)
+    float val = data[tid * stride]; 
+}
+Use code with caution.
+
+2. Asynchronous Data Transfer
+To hide the "cost" of moving data between CPU and GPU, you can use CUDA Streams to overlap kernel execution with data transfers. 
+cpp
+cudaStream_t stream;
+cudaStreamCreate(&stream);
+
+// Asynchronously copy data and launch kernel in the same stream
+cudaMemcpyAsync(d_in, h_in, size, cudaMemcpyHostToDevice, stream);
+my_kernel<<<blocks, threads, 0, stream>>>(d_in, d_out);
+cudaMemcpyAsync(h_out, d_out, size, cudaMemcpyDeviceToHost, stream);
+
+cudaStreamSynchronize(stream); // Wait for this stream to finish
+Use code with caution.
+
+3. Constant and Texture Memory 
+Constant Memory: Best for small, read-only data accessed by all threads simultaneously (e.g., filter coefficients).
+Texture Memory: Best for 2D/3D spatial data where threads access "nearby" pixels. 
+cpp
+// Constant Memory Example
+__constant__ float coefficients[256];
+
+__global__ void use_constant_kernel(float *data) {
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    // All threads read the same coefficient simultaneously (cached)
+    data[tid] *= coefficients[0]; 
+}
+Use code with caution.
+
+4. Managing Large-Scale Data Sets
+When data is too large for GPU VRAM, use Unified Memory or Streaming (Tiling) to process it in chunks. 
+cpp
+// Unified Memory: Managed by the driver to swap pages between CPU/GPU
+float *data;
+cudaMallocManaged(&data, LARGE_SIZE);
+
+// Tiling Strategy: Process chunks if data > VRAM
+for (int i = 0; i < total_chunks; i++) {
+    cudaMemcpyAsync(d_buf, h_large_data + offset, chunk_size, ...);
+    process_kernel<<<...>>>(d_buf);
+}
+
+
+*****************************
+basic exmaple code each separate:::Adavnced CUDA Programming techniques
+Managing multiple GPUs and multi-GPU communication
+Using CUDA libraries for common parallel algorithms (cuBLAS, cuFFT, etc.)
+Dynamic parallelism and recursive GPU programming
+Advanced optimization techniques (warp divergence, memory access patterns, etc.)
+Here are separate, basic code examples for advanced CUDA programming techniques.
+1. Managing Multiple GPUs and Peer-to-Peer (P2P) Communication
+To use multiple GPUs, you must explicitly set the active device for each operation. GPUDirect P2P allows one GPU to access another's memory directly over the PCIe bus without involving the host. 
+cpp
+int dev0 = 0, dev1 = 1;
+float *data0, *data1;
+
+// Allocate on GPU 0
+cudaSetDevice(dev0);
+cudaMalloc(&data0, size);
+
+// Allocate on GPU 1
+cudaSetDevice(dev1);
+cudaMalloc(&data1, size);
+
+// Enable Peer-to-Peer access from GPU 0 to GPU 1
+cudaSetDevice(dev0);
+cudaDeviceEnablePeerAccess(dev1, 0);
+
+// Directly copy from GPU 1 to GPU 0 (P2P)
+cudaMemcpyPeer(data0, dev0, data1, dev1, size);
+Use code with caution.
+
+2. Using CUDA Libraries (cuBLAS)
+NVIDIA provides high-performance libraries like cuBLAS for linear algebra and cuFFT for Fourier transforms to avoid writing complex kernels from scratch. 
+cpp
+#include <cublas_v2.h>
+
+cublasHandle_t handle;
+cublasCreate(&handle);
+
+// Standard SAXPY operation: y = alpha * x + y
+float alpha = 2.0f;
+cublasSaxpy(handle, n, &alpha, d_x, 1, d_y, 1);
+
+cublasDestroy(handle);
+Use code with caution.
+
+3. Dynamic Parallelism (Recursive GPU Programming)
+Dynamic Parallelism allows a kernel to launch other kernels directly from the GPU. This is useful for recursive algorithms like Quadtrees or adaptive mesh refinement. 
+cpp
+__global__ child_kernel(int val) {
+    // Perform child work
+}
+
+__global__ parent_kernel(int depth) {
+    if (depth > 0) {
+        // Launch child kernel directly from GPU
+        child_kernel<<<1, 32>>>(depth);
+        // Recursive-like launch
+        parent_kernel<<<1, 1>>>(depth - 1);
+    }
+}
+Use code with caution.
+
+4. Advanced Optimization: Coalesced Memory Access 
+Efficiency often depends on memory access patterns. Coalesced access occurs when all threads in a warp access a contiguous block of memory, maximizing bandwidth. 
+cpp
+__global__ void coalesced_copy(float *out, float *in, int n) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < n) {
+        // Coalesced: consecutive threads access consecutive addresses
+        out[idx] = in[idx]; 
+    }
+}
+
+// STIDE access (UN-OPTIMIZED / Slow)
+// out[idx] = in[idx * 2]; // Causes multiple memory transactions
+Use code with caution.
+
+5. Advanced Optimization: Reducing Warp Divergence 
+Warp divergence occurs when threads in the same warp take different execution paths (e.g., if-else). Keeping threads on the same path is critical for performance. 
+cpp
+// POOR: High divergence (every other thread diverges)
+if (threadIdx.x % 2 == 0) { do_A(); } else { do_B(); }
+
+// BETTER: Threads in a warp (0-31) stay together
+if ((threadIdx.x / 32) % 2 == 0) { do_A(); } else { do_B(); }
+
+
+*************************************
+below each separate basic exmpale code::CUDA Performance Analysis and Optimization
+Profiling CUDA applications using CUDA Profiler and NVIDIA Visual Profiler
+Fine-tuning CUDA kernels & Strategies for maximum parallelism and throughput
+Identifying performance bottlenecks and optimizing code
+Optimizing CUDA applications involves a cycle of profiling to identify bottlenecks, applying parallel strategies, and verifying improvements with detailed metrics. 
+1. Profiling CUDA Applications
+Modern profiling uses the NVIDIA Nsight Suite (replacing the deprecated Visual Profiler and nvprof). 
+Nsight Systems: Visualises the system-wide timeline, including CPU/GPU interactions and memory transfers.
+Nsight Compute: Provides interactive, low-level kernel profiling for metrics like SM utilization and memory throughput. 
+Example: Manual Instrumentation for Profiling
+You can programmatically start/stop profiling for specific regions using the CUDA Profiler API. 
+cpp
+#include <cuda_profiler_api.h>
+
+// Launch kernel only in a specific region
+cudaProfilerStart(); 
+myKernel<<<blocks, threads>>>(d_data);
+cudaDeviceSynchronize();
+cudaProfilerStop();
+Use code with caution.
+
+2. Identifying Performance Bottlenecks
+Bottlenecks typically fall into three categories: Compute-bound, Memory-bound, or Latency-bound. 
+Memory Bandwidth: Check for uncoalesced memory accesses where threads in a warp access non-contiguous memory.
+Occupancy: Low occupancy occurs when too few warps are active on an SM, often due to high register or shared memory usage.
+Instruction Throughput: Identify bottlenecks in specific math pipelines (e.g., FP32 vs. FP64) using Nsight Compute's "Speed of Light" analysis. 
+Example: Using CUDA Events to Measure Latency
+Use CUDA Events to time kernels accurately on the device without CPU interference. 
+cpp
+cudaEvent_t start, stop;
+cudaEventCreate(&start);
+cudaEventCreate(&stop);
+
+cudaEventRecord(start);
+vectorAdd<<<grid, block>>>(d_A, d_B, d_C, N);
+cudaEventRecord(stop);
+
+cudaEventSynchronize(stop);
+float milliseconds = 0;
+cudaEventElapsedTime(&milliseconds, start, stop);
+Use code with caution.
+
+3. Fine-tuning and Parallelism Strategies
+To maximize throughput, focus on hiding memory latency and optimizing the execution configuration. 
+Maximize Parallelism: Use a "Grid-Stride Loop" to allow kernels to process data larger than the grid size while maintaining memory coalescing.
+Shared Memory: Use fast on-chip shared memory to cache frequently reused data and reduce global memory traffic.
+Stream Overlapping: Use CUDA Streams to overlap data transfers (HtoD/DtoH) with kernel execution. 
+Example: Optimization via Grid-Stride Loops
+This pattern ensures memory coalescing and scalability across different GPU hardware. 
+cpp
+__global__ void optimizedKernel(float *data, int n) {
+    int index = blockIdx.x * blockDim.x + threadIdx.x;
+    int stride = blockDim.x * gridDim.x;
+    
+    // Grid-stride loop: processes multiple elements per thread
+    for (int i = index; i < n; i += stride) {
+        data[i] *= 2.0f; 
+    }
+}
+
+******************************************
