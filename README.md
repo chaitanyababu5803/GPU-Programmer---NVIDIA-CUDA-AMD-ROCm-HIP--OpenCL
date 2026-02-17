@@ -75,3 +75,28 @@ CUDA supports only NVIDIA hardware.
 
 
 *********************************************************
+CUDA Hello World
+This is a simple example of a CUDA C program that demonstrates how to execute a kernel on the GPU and print a message to the console.
+Prerequisite :
+NVIDIA GPU with CUDA support
+CUDA Toolkit installed
+Compatible C compiler (e.g., gcc)
+Code :
+#include <stdio.h>
+#include <cuda.h>
+
+__global__ void dkernel(){ //__global__ indicate it is not normal kernel function but for GPU
+printf(“Hello world \n”);
+}
+
+int main (){
+dkernel <<<1,1>>>();//<<<no. of blocks,no. of threads in in block>>>
+
+cudaDeviceSynchronize(); //Tells GPU to do all work than synchronize GPU buffer with CPU.
+
+return 0;
+
+}
+
+
+****************************
