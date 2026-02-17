@@ -120,6 +120,8 @@ What Can You Do With It? ROCm is particularly impactful in fields that require m
 
 ****************************
 AMD ROCm (Radeon Open Compute) is a software stack. 
+*********************
+https://www.reddit.com/r/AskProgramming/comments/1n4avki/what_is_amd_rocm_why_was_it_invented_and_what_can/
 It is an open-source platform designed for GPU computing, acting as the software layer that allows developers to program AMD GPUs for high-performance computing (HPC), artificial intelligence (AI), and machine learning (ML) tasks. 
 Here is a breakdown of what AMD ROCm consists of:
 
@@ -189,3 +191,6 @@ Edge & Client AI: Explore ROCm support for the AMD Ryzen AI 300/400 series and R
 Robotics Integration: Learn to integrate ROCm with ROS 2 and simulation frameworks like Gazebo for AI-driven robotics.
 
 ********************************
+1. Heterogeneous Programming & Portability
+HIP (Heterogeneous-Compute Interface for Portability): Master the HIP programming model to write code that can run on both AMD and NVIDIA GPUs.
+CUDA-to-HIP Migration: Learn to use tools like hipify to port existing CUDA applications to the ROCm platform.
