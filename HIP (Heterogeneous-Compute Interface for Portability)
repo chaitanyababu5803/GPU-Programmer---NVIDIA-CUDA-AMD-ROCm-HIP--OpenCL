@@ -1,0 +1,59 @@
+1. Heterogeneous Programming & Portability
+HIP (Heterogeneous-Compute Interface for Portability): Master the HIP programming model to write code that can run on both AMD and NVIDIA GPUs.
+CUDA-to-HIP Migration: Learn to use tools like hipify to port existing CUDA applications to the ROCm platform.
+
+***************************************
+HIP (Heterogeneous-Compute Interface for Portability) tutorials online suggest me all core/topics
+Mastering HIP (Heterogeneous-Compute Interface for Portability) allows you to write single-source C++ code that runs on both AMD and NVIDIA GPUs. 
+Here are the core topics and modules typically covered in comprehensive HIP programming tutorials: 
+
+1. Foundation & Architecture
+Introduction to Heterogeneous Computing: Understanding the host (CPU) and device (GPU) relationship.
+SIMT (Single Instruction, Multiple Threads): How HIP maps threads to hardware SIMD lanes.
+Hardware Implementation: Learning about Compute Units (CUs), wavefronts (AMD’s term for warps), and how registers/ALUs are shared. 
+
+2. Core Programming Model
+Thread Hierarchy: Grids, blocks, and individual threads.
+Kernel Execution: Launching kernels using the triple-chevron syntax (<<< >>>) or hipLaunchKernelGGL.
+Memory Model: Managing different namespaces:
+Global Memory: Persistent across the entire kernel.
+Shared Memory: Low-latency memory shared within a block.
+Local/Constant/Texture Memory: Specialized memory for thread-local data or read-only access. 
+
+3. HIP Runtime API
+Device Management: Identifying and selecting specific GPUs via hipSetDevice.
+Memory Management: Allocation (hipMalloc), deallocation (hipFree), and data transfers (hipMemcpy).
+Streams and Events: Orchestrating asynchronous execution and synchronization.
+Error Handling: Using hipGetErrorString to debug API and kernel failures. 
+
+4. Advanced Features
+Unified Memory: Managing automatic page migrations between CPU and GPU.
+Cooperative Groups: Flexible thread grouping and collective synchronization.
+HIP Graphs: Modeling complex dependencies as nodes and edges to reduce launch overhead.
+Interoperability: Connecting with external APIs like OpenGL. 
+
+5. Porting & Tools
+HIPify Tools: Using hipify-clang or hipify-perl to automatically convert CUDA code to HIP.
+Performance Profiling: Using tools like rocprofv3 to identify bottlenecks.
+Debugging: Utilizing rocgdb for kernel-level debugging. 
+For a hands-on start, the AMD ROCm Documentation provides specific SAXPY (Hello World) and Matrix Multiplication tutorials
+
+
+**************************************
+Install HIP
+HIP can be installed on AMD (ROCm with HIP-Clang) and NVIDIA (CUDA with NVCC) platforms.
+
+Note
+he version definition for the HIP runtime is different from CUDA. On AMD platforms, the hipRuntimeGetVersion() function returns the HIP runtime version. On NVIDIA platforms, this function returns the CUDA runtime version.
+
+**********************
+Introduction to the HIP programming model
+The HIP programming model enables mapping data-parallel C/C++ algorithms to massively parallel SIMD (Single Instruction, Multiple Data) architectures like GPUs. HIP supports many imperative languages, such as Python via PyHIP, but this document focuses on the original C/C++ API of HIP.
+
+While GPUs may be capable of running applications written for CPUs if properly ported and compiled, it would not be an efficient use of GPU resources. GPUs fundamentally differ from CPUs and should be used accordingly to achieve optimum performance. A basic understanding of the underlying device architecture helps you make efficient use of HIP and general purpose graphics processing unit (GPGPU) programming in general. The following topics introduce you to the key concepts of GPU-based programming and the HIP programming model.
+
+Hardware differences: CPU vs GPU
+CPUs and GPUs have been designed for different purposes. CPUs quickly execute a single thread, decreasing the time for a single operation while increasing the number of sequential instructions that can be executed. This includes fetching data and reducing pipeline stalls where the ALU has to wait for previous instructions to finish.
+
+********************
+Memory optimizations and best practices
