@@ -57,3 +57,1324 @@ CPUs and GPUs have been designed for different purposes. CPUs quickly execute a 
 
 ********************
 Memory optimizations and best practices
+
+
+*******************************
+Understanding GPU performance
+This chapter explains the theoretical foundations of GPU performance on AMD hardware. Understanding these concepts helps you analyze performance characteristics, identify bottlenecks, and make informed optimization decisions.
+
+For practical optimization techniques and step-by-step guidance, see Performance guidelines.
+
+Performance bottlenecks
+A performance bottleneck is the limiting factor that prevents a GPU kernel from achieving higher performance. The two primary categories are:
+
+Compute-bound: The kernel is limited by arithmetic throughput
+
+Memory-bound: The kernel is limited by memory bandwidth
+
+Understanding which category applies helps identify the appropriate optimization approach. Compute-bound kernels benefit from arithmetic optimizations, while memory-bound kernels benefit from memory access improvements.
+
+Roofline model
+The roofline model is a visual performance analysis framework that relates achievable performance to hardware limits based on arithmetic intensity.
+
+The model plots performance (FLOPS) against arithmetic intensity (FLOPS/byte) with two limiting factors:
+
+Memory bandwidth ceiling: A sloped line representing peak memory bandwidth
+
+Compute ceiling: A horizontal line representing peak arithmetic throughput
+
+The intersection point determines the transition between memory-bound and compute-bound regions. Kernels below and to the left of the intersection are memory-bound, while those to the right are compute-bound.
+
+**************************
+Latency hiding mechanisms
+GPUs hide memory and instruction latency through massive hardware multithreading rather than complex CPU techniques like out-of-order execution.
+
+How latency hiding works:
+
+Wavefront switching: Context switches occur every cycle with zero overhead
+
+Multiple wavefronts per CU: Many concurrent wavefronts supported
+
+Instruction-level parallelism: Multiple independent instructions in flight
+
+The hardware can completely hide memory latency if there are enough active wavefronts with independent work. The number of instructions required from other wavefronts to hide latency depends on the specific memory latency and instruction throughput characteristics of the GPU.
+
+Requirements for effective latency hiding:
+
+Sufficient occupancy (active wavefronts)
+
+Independent instructions to overlap
+
+Balanced resource usage
+
+Minimal divergence
+
+Wavefront execution states
+A wavefront can be in one of several states during execution:
+
+Active: Currently executing on a SIMD unit
+
+Ready: Eligible for execution, waiting for scheduling
+
+Stalled: Waiting for a dependency (memory, synchronization)
+
+Sleeping: Blocked on a barrier or synchronization primitive
+
+Understanding these states helps explain GPU utilization metrics:
+
+Active cycles: Percentage of cycles with at least one instruction executing
+
+Stall cycles: Percentage of cycles waiting for resources
+
+Idle cycles: No wavefronts available to execute
+
+Maximizing active cycles while minimizing stall and idle cycles improves performance.
+
+Occupancy theory
+Occupancy measures the ratio of active wavefronts to the maximum possible wavefronts on a compute unit.
+
+ 
+Why occupancy matters:
+
+Higher occupancy improves latency hiding
+
+More concurrent wavefronts mask memory and instruction latency
+
+Enables better utilization of execution units
+
+Limiting factors:
+
+Register usage: VGPRs and SGPRs per thread
+
+Shared memory (LDS): Allocation per block
+
+Wavefront slots: Hardware limit on concurrent wavefronts
+
+Block size: Small blocks may waste resources
+
+Trade-offs:
+
+Higher occupancy improves latency hiding but reduces resources per thread
+
+Lower occupancy allows more resources per thread but may expose latency
+
+Optimal occupancy depends on kernel characteristics
+
+Memory-bound kernels benefit more from high occupancy
+
+Memory hierarchy impact on performance
+The GPU memory hierarchy has different bandwidths and latencies:
+
+Memory types by speed:
+
+Registers: Fastest, lowest latency (per-thread storage)
+
+LDS (shared memory): Very fast, on-chip (per-block storage)
+
+L1 cache: Fast, on-chip (per-CU cache)
+
+L2 cache: Moderate, on-chip (shared across CUs)
+
+HBM (global memory): Slower, off-chip but high bandwidth
+
+Memory coalescing theory
+Memory coalescing combines memory accesses from multiple threads into fewer transactions. When consecutive threads access consecutive memory addresses, the hardware can merge requests into efficient cache line accesses.
+
+Why coalescing matters:
+
+Reduces number of memory transactions
+
+Improves memory bandwidth utilization
+
+Decreases memory access latency
+
+Coalesced pattern: Consecutive threads accessing consecutive addresses achieve high bandwidth utilization.
+
+Non-coalesced pattern: Random or strided addresses result in many separate transactions and low bandwidth utilization.
+
+Bank conflict theory
+Shared memory (LDS) is organized into banks that can be accessed independently. Bank conflicts occur when multiple threads access different addresses in the same bank.
+
+Why bank conflicts matter:
+
+Conflicts serialize accesses, reducing throughput
+
+LDS bandwidth drops proportionally to conflict degree
+
+Can turn parallel operations into sequential ones
+
+Common patterns:
+
+No conflict: Each thread accesses a different bank (full bandwidth)
+
+Broadcast: Multiple threads read the same address (no conflict)
+
+N-way conflict: N threads access the same bank (1/N bandwidth)
+
+Register pressure theory
+Register pressure occurs when a kernel requires more registers than optimal for the target occupancy.
+
+Why register pressure matters:
+
+Reduces maximum occupancy
+
+May cause register spilling to memory
+
+Decreases ability to hide latency
+
+Lowers overall throughput
+
+The relationship between registers and occupancy:
+
+More registers per thread → fewer concurrent wavefronts
+
+Fewer registers per thread → higher occupancy but may need memory spills
+
+Optimal balance depends on kernel memory access patterns
+
+Performance metrics explained
+Understanding performance metrics helps analyze GPU behavior:
+
+Peak rate
+The theoretical maximum performance of a GPU:
+
+Peak FLOPS: Maximum floating-point operations per second
+
+Peak bandwidth: Maximum memory throughput
+
+Peak instruction rate: Maximum instructions per cycle
+
+Actual performance is always below peak due to various inefficiencies.
+
+Utilization metrics
+Pipe utilization: The percentage of execution cycles where the pipeline is actively processing instructions. Low utilization indicates stalls or insufficient work.
+
+Issue efficiency: The ratio of issued instructions to the maximum possible. Low efficiency can indicate instruction cache misses, scheduling inefficiencies, or resource conflicts.
+
+CU utilization: The percentage of compute units actively executing work. Low utilization suggests insufficient parallelism, load imbalance, or synchronization overhead.
+
+Branch efficiency: The ratio of non-divergent to total branches. Low efficiency indicates significant divergence overhead.
+
+
+********************************
+HIP compilers
+ROCm provides the compiler tools used to compile HIP applications for use on AMD GPUs. The compilers set up the default libraries and include paths for the HIP and ROCm libraries and some needed environment variables. For more information, see the ROCm compiler reference.
+
+Compilation workflow
+HIP provides a flexible compilation workflow that supports both offline compilation and runtime or just-in-time (JIT) compilation. Each approach has advantages depending on the use case, target architecture, and performance needs.
+
+The offline compilation is ideal for production environments, where the performance is critical and the target GPU architecture is known in advance.
+
+The runtime compilation is useful in development environments or when distributing software that must run on a wide range of hardware without the knowledge of the GPU in advance. It provides flexibility at the cost of some performance overhead.
+
+Offline compilation
+Offline compilation is performed in two steps: host and device code compilation.
+
+Host-code compilation: On the host side, amdclang++ or hipcc can compile the host code in one step without other C++ compilers.
+
+Device-code compilation: The compiled device code is embedded into the host object file. Depending on the platform, the device code can be compiled into assembly or binary.
+
+For an example on how to compile HIP from the command line, see SAXPY tutorial .
+
+Runtime compilation
+HIP allows you to compile kernels at runtime using the hiprtc* API. Kernels are stored as a text string, which is passed to HIPRTC alongside options to guide the compilation.
+
+For more information, see HIP runtime compiler.
+
+Static libraries
+Both amdclang++ and hipcc support generating two types of static libraries.
+
+The first type of static library only exports and launches host functions within the same library and not the device functions. This library type offers the ability to link with another compiler such as gcc. Additionally, this library type contains host objects with device code embedded as fat binaries. This library type is generated using the flag --emit-static-lib:
+
+amdclang++ hipOptLibrary.cpp --emit-static-lib -fPIC -o libHipOptLibrary.a
+gcc test.cpp -L. -lhipOptLibrary -L/path/to/hip/lib -lamdhip64 -o test.out
+The second type of static library exports device functions to be linked by other code objects by using amdclang++ or hipcc as the linker. This library type contains relocatable device objects and is generated using ar:
+
+hipcc hipDevice.cpp -c -fgpu-rdc -o hipDevice.o
+ar rcsD libHipDevice.a hipDevice.o
+hipcc libHipDevice.a test.cpp -fgpu-rdc -o test.out
+
+
+****************************
+Debugging with HIP
+HIP debugging tools include ltrace and ROCgdb. External tools are available and can be found online. For example, if you’re using Windows, you can use Microsoft Visual Studio and WinGDB.
+
+You can trace and debug your code using the following tools and techniques.
+
+Tracing
+You can use tracing to quickly observe the flow of an application before reviewing the detailed information provided by a command-line debugger. Tracing can be used to identify issues ranging from accidental API calls to calls made on a critical path.
+
+ltrace is a standard Linux tool that provides a message to stderr on every dynamic library call. You can use ltrace to visualize the runtime behavior of the entire ROCm software stack.
+
+Here’s a simple command-line example that uses ltrace to trace HIP APIs and output:
+
+ltrace -C -e "hip*" ./hipGetChanDesc
+hipGetChanDesc->hipCreateChannelDesc(0x7ffdc4b66860, 32, 0, 0) = 0x7ffdc4b66860
+hipGetChanDesc->hipMallocArray(0x7ffdc4b66840, 0x7ffdc4b66860, 8, 8) = 0
+hipGetChanDesc->hipGetChannelDesc(0x7ffdc4b66848, 0xa63990, 5, 1) = 0
+hipGetChanDesc->hipFreeArray(0xa63990, 0, 0x7f8c7fe13778, 0x7ffdc4b66848) = 0
+PASSED!
++++ exited (status 0) +++
+Here’s another example that uses ltrace to trace hsa APIs and output:
+
+****************************
+Logging HIP activity
+HIP provides a logging mechanism that allows you to trace HIP API and runtime codes when running a HIP application. In addition to being useful to our users/developers, the HIP development team uses these logs to improve the HIP runtime.
+
+By adjusting the logging settings and logging mask, you can get different types of information for different functionalities, such as HIP APIs, executed kernels, queue commands, and queue contents. Refer to the following sections for examples.
+
+Tip
+
+Logging works for the release and debug versions of HIP. If you want to save logging output in a file, define the file when running the application via command line. For example:
+
+user@user-test:~/hip/bin$ ./hipinfo > ~/hip_log.txt
+Logging level
+HIP logging is disabled by default. You can enable it via the AMD_LOG_LEVEL environment variable. The value of this variable controls your logging level. Levels are defined as follows:
+
+enum LogLevel {
+  LOG_NONE           = 0,
+  LOG_ERROR          = 1,
+  LOG_WARNING        = 2,
+  LOG_INFO           = 3,
+  LOG_DEBUG          = 4,
+  LOG_EXTRA_DEBUG    = 5
+};
+Tip
+
+You can call a logging function with different logging levels. All information under the value set for AMD_LOG_LEVEL is printed.
+
+Logging mask
+The logging mask is designed to print functionality types when you’re running a HIP application. Once you set AMD_LOG_LEVEL, the logging mask is set as the default value (0x7FFFFFFF). You can change this to any of the valid values:
+
+enum LogMask {
+  LOG_API       = 1,      //!< (0x1)     API call
+  LOG_CMD       = 2,      //!< (0x2)     Kernel and Copy Commands and Barriers
+  LOG_WAIT      = 4,      //!< (0x4)     Synchronization and waiting for commands to finish
+  LOG_AQL       = 8,      //!< (0x8)     Decode and display AQL packets
+  LOG_QUEUE     = 16,     //!< (0x10)    Queue commands and queue contents
+  LOG_SIG       = 32,     //!< (0x20)    Signal creation, allocation, pool
+  LOG_LOCK      = 64,     //!< (0x40)    Locks and thread-safety code.
+  LOG_KERN      = 128,    //!< (0x80)    Kernel creations and arguments, etc.
+  LOG_COPY      = 256,    //!< (0x100)   Copy debug
+  LOG_COPY2     = 512,    //!< (0x200)   Detailed copy debug
+  LOG_RESOURCE  = 1024,   //!< (0x400)   Resource allocation, performance-impacting events.
+  LOG_INIT      = 2048,   //!< (0x800)   Initialization and shutdown
+  LOG_MISC      = 4096,   //!< (0x1000)  Misc debug, not yet classified
+  LOG_AQL2      = 8192,   //!< (0x2000)  Show raw bytes of AQL packet
+  LOG_CODE      = 16384,  //!< (0x4000)  Show code creation debug
+  LOG_CMD2      = 32768,  //!< (0x8000)  More detailed command info, including barrier commands
+  LOG_LOCATION  = 65536,  //!< (0x10000) Log message location
+  LOG_MEM       = 131072, //!< (0x20000) Memory allocation
+  LOG_MEM_POOL  = 262144, //!< (0x40000) Memory pool allocation, including memory in graphs
+  LOG_TS        = 524288, //!< (0x80000) Timestamp details
+  LOG_ALWAYS    = -1      //!< (0xFFFFFFFF) Log always even mask flag is zero
+};
+You can also define the logging mask via the AMD_LOG_MASK environment variable.
+
+Logging command
+You can use the following code to print HIP logging information:
+
+#define ClPrint(level, mask, format, ...)                                       \
+  do {                                                                          \
+    if (AMD_LOG_LEVEL >= level) {                                               \
+      if (AMD_LOG_MASK & mask || mask == amd::LOG_ALWAYS) {                     \
+        if (AMD_LOG_MASK & amd::LOG_LOCATION) {                                 \
+          amd::log_printf(level, __FILENAME__, __LINE__, format, ##__VA_ARGS__);\
+        } else {                                                                \
+          amd::log_printf(level, "", 0, format, ##__VA_ARGS__);                 \
+        }                                                                       \
+      }                                                                         \
+    }                                                                           \
+  } while (false)
+Using HIP code, call the ClPrint() function with the desired input variables. For example:
+
+ClPrint(amd::LOG_INFO, amd::LOG_INIT, "Initializing HSA stack.");
+Logging examples
+On Linux, you can enable HIP logging and retrieve logging information when you run hipinfo.
+
+export AMD_LOG_LEVEL=4
+./hipinfo
+
+:3:rocdevice.cpp            :453 : 23647210092: Initializing HSA stack.
+:3:comgrctx.cpp             :33  : 23647639336: Loading COMGR library.
+:3:rocdevice.cpp            :203 : 23647687108: Numa select cpu agent[0]=0x13407c0(fine=0x13409a0,coarse=0x1340ad0) for gpu agent=0x1346150
+:4:runtime.cpp              :82  : 23647698669: init
+:3:hip_device_runtime.cpp   :473 : 23647698869: 5617 : [7fad295dd840] hipGetDeviceCount: Returned hipSuccess
+:3:hip_device_runtime.cpp   :502 : 23647698990: 5617 : [7fad295dd840] hipSetDevice ( 0 )
+:3:hip_device_runtime.cpp   :507 : 23647699042: 5617 : [7fad295dd840] hipSetDevice: Returned hipSuccess
+--------------------------------------------------------------------------------
+device#                           0
+:3:hip_device.cpp           :150 : 23647699276: 5617 : [7fad295dd840] hipGetDeviceProperties ( 0x7ffdbe7db730, 0 )
+:3:hip_device.cpp           :237 : 23647699335: 5617 : [7fad295dd840] hipGetDeviceProperties: Returned hipSuccess
+Name:                             Device 7341
+pciBusID:                         3
+pciDeviceID:                      0
+pciDomainID:                      0
+multiProcessorCount:              11
+maxThreadsPerMultiProcessor:      2560
+isMultiGpuBoard:                  0
+clockRate:                        1900 Mhz
+memoryClockRate:                  875 Mhz
+memoryBusWidth:                   0
+clockInstructionRate:             1000 Mhz
+totalGlobalMem:                   7.98 GB
+maxSharedMemoryPerMultiProcessor: 64.00 KB
+totalConstMem:                    8573157376
+sharedMemPerBlock:                64.00 KB
+canMapHostMemory:                 1
+regsPerBlock:                     0
+warpSize:                         32
+l2CacheSize:                      0
+computeMode:                      0
+maxThreadsPerBlock:               1024
+maxThreadsDim.x:                  1024
+maxThreadsDim.y:                  1024
+maxThreadsDim.z:                  1024
+maxGridSize.x:                    2147483647
+maxGridSize.y:                    2147483647
+maxGridSize.z:                    2147483647
+major:                            10
+minor:                            12
+concurrentKernels:                1
+cooperativeLaunch:                0
+cooperativeMultiDeviceLaunch:     0
+arch.hasGlobalInt32Atomics:       1
+...
+gcnArch:                          1012
+isIntegrated:                     0
+maxTexture1D:                     65536
+maxTexture2D.width:               16384
+maxTexture2D.height:              16384
+maxTexture3D.width:               2048
+maxTexture3D.height:              2048
+maxTexture3D.depth:               2048
+isLargeBar:                       0
+:3:hip_device_runtime.cpp   :471 : 23647701557: 5617 : [7fad295dd840] hipGetDeviceCount ( 0x7ffdbe7db714 )
+:3:hip_device_runtime.cpp   :473 : 23647701608: 5617 : [7fad295dd840] hipGetDeviceCount: Returned hipSuccess
+:3:hip_peer.cpp             :76  : 23647701731: 5617 : [7fad295dd840] hipDeviceCanAccessPeer ( 0x7ffdbe7db728, 0, 0 )
+:3:hip_peer.cpp             :60  : 23647701784: 5617 : [7fad295dd840] canAccessPeer: Returned hipSuccess
+:3:hip_peer.cpp             :77  : 23647701831: 5617 : [7fad295dd840] hipDeviceCanAccessPeer: Returned hipSuccess
+peers:
+:3:hip_peer.cpp             :76  : 23647701921: 5617 : [7fad295dd840] hipDeviceCanAccessPeer ( 0x7ffdbe7db728, 0, 0 )
+:3:hip_peer.cpp             :60  : 23647701965: 5617 : [7fad295dd840] canAccessPeer: Returned hipSuccess
+:3:hip_peer.cpp             :77  : 23647701998: 5617 : [7fad295dd840] hipDeviceCanAccessPeer: Returned hipSuccess
+non-peers:                        device#0
+
+:3:hip_memory.cpp           :345 : 23647702191: 5617 : [7fad295dd840] hipMemGetInfo ( 0x7ffdbe7db718, 0x7ffdbe7db720 )
+:3:hip_memory.cpp           :360 : 23647702243: 5617 : [7fad295dd840] hipMemGetInfo: Returned hipSuccess
+memInfo.total:                    7.98 GB
+memInfo.free:                     7.98 GB (100%)
+
+****************************
+Error handling
+HIP provides functionality to detect, report, and manage errors that occur during the execution of HIP runtime functions or when launching kernels. Every HIP runtime function, apart from launching kernels, has hipError_t as return type. hipGetLastError() and hipPeekAtLastError() can be used for catching errors from kernel launches, as kernel launches don’t return an error directly. HIP maintains an internal state, that includes the last error code. hipGetLastError() returns and resets that error to hipSuccess, while hipPeekAtLastError() just returns the error without changing it. To get a human readable version of the errors, hipGetErrorString() and hipGetErrorName() can be used.
+
+Note
+
+hipGetLastError() returns the last actual HIP API error caught in the current thread during the application execution. Prior to ROCm 7.0, hipGetLastError might also return hipSuccess or hipErrorNotReady from the last HIP runtime API call, which are not errors.
+
+Best practices of HIP error handling:
+
+Check errors after each API call - Avoid error propagation.
+
+Use macros for error checking - Check HIP check macros.
+
+Handle errors gracefully - Free resources and provide meaningful error messages to the user.
+
+For more details on the error handling functions, see error handling functions reference page.
+
+For a list of all error codes, see HIP error codes.
+
+HIP check macros
+HIP uses check macros to simplify error checking and reduce code duplication. The HIP_CHECK macros are mainly used to detect and report errors. It can also exit from application with exit(1); function call after the error print. The HIP_CHECK macro example:
+
+#define HIP_CHECK(expression)                  \
+{                                              \
+    const hipError_t status = expression;      \
+    if(status != hipSuccess){                  \
+        std::cerr << "HIP error "              \
+                  << status << ": "            \
+                  << hipGetErrorString(status) \
+                  << " at " << __FILE__ << ":" \
+                  << __LINE__ << std::endl;    \
+    }                                          \
+}
+Complete example
+A complete example to demonstrate the error handling with a simple addition of two values kernel:
+
+#include <hip/hip_runtime.h>
+
+#include <algorithm>
+#include <cstddef>
+#include <cstdlib>
+#include <iostream>
+#include <vector>
+
+#define HIP_CHECK(expression)                  \
+{                                              \
+    const hipError_t status = expression;      \
+    if(status != hipSuccess)                   \
+    {                                          \
+        std::cerr << "HIP error "              \
+                  << status << ": "            \
+                  << hipGetErrorString(status) \
+                  << " at " << __FILE__ << ":" \
+                  << __LINE__ << std::endl;    \
+    }                                          \
+}
+
+// Addition of two values.
+__global__ void add(int *a, int *b, int *c, std::size_t size)
+{
+    const std::size_t index = threadIdx.x + blockDim.x * blockIdx.x;
+    if(index < size)
+    {
+        c[index] += a[index] + b[index];
+    }
+}
+
+int main()
+{
+    constexpr int numOfBlocks = 256;
+    constexpr int threadsPerBlock = 256;
+    constexpr std::size_t arraySize = 1U << 16;
+
+    std::vector<int> a(arraySize), b(arraySize), c(arraySize);
+    int *d_a, *d_b, *d_c;
+
+    // Setup input values.
+    std::fill(a.begin(), a.end(), 1);
+    std::fill(b.begin(), b.end(), 2);
+
+    // Allocate device copies of a, b and c.
+    HIP_CHECK(hipMalloc(&d_a, arraySize * sizeof(int)));
+    HIP_CHECK(hipMalloc(&d_b, arraySize * sizeof(int)));
+    HIP_CHECK(hipMalloc(&d_c, arraySize * sizeof(int)));
+
+    // Copy input values to device.
+    HIP_CHECK(hipMemcpy(d_a, a.data(), arraySize * sizeof(int), hipMemcpyHostToDevice));
+    HIP_CHECK(hipMemcpy(d_b, b.data(), arraySize * sizeof(int), hipMemcpyHostToDevice));
+
+    // Launch add() kernel on GPU.
+    add<<<numOfBlocks, threadsPerBlock>>>(d_a, d_b, d_c, arraySize);
+    // Check the kernel launch
+    HIP_CHECK(hipGetLastError());
+    // Check for kernel execution error
+    HIP_CHECK(hipDeviceSynchronize());
+
+    // Copy the result back to the host.
+    HIP_CHECK(hipMemcpy(c.data(), d_c, arraySize * sizeof(int), hipMemcpyDeviceToHost));
+
+    // Cleanup allocated memory.
+    HIP_CHECK(hipFree(d_a));
+    HIP_CHECK(hipFree(d_b));
+    HIP_CHECK(hipFree(d_c));
+
+    // Print the result.
+    std::cout << a[0] << " + " << b[0] << " = " << c[0] << std::endl;
+
+    return EXIT_SUCCESS;
+}
+
+**************************************
+HIP C++ language extensions
+HIP extends the C++ language with additional features designed for programming heterogeneous applications. These extensions mostly relate to the kernel language, but some can also be applied to host functionality.
+
+HIP qualifiers
+Function-type qualifiers
+HIP introduces three different function qualifiers to mark functions for execution on the device or the host, and also adds new qualifiers to control inlining of functions.
+
+__host__
+The __host__ qualifier is used to specify functions for execution on the host. This qualifier is implicitly defined for any function where no __host__, __device__ or __global__ qualifier is added, in order to not break compatibility with existing C++ functions.
+
+You can’t combine __host__ with __global__.
+
+__device__
+The __device__ qualifier is used to specify functions for execution on the device. They can only be called from other __device__ functions or from __global__ functions.
+
+You can combine it with the __host__ qualifier and mark functions __host__ __device__. In this case, the function is compiled for the host and the device. Note that these functions can’t use the HIP built-ins (e.g., threadIdx.x or warpSize), as they are not available on the host. If you need to use HIP grid coordinate functions, you can pass the necessary coordinate information as an argument.
+
+__global__
+Functions marked __global__ are executed on the device and are referred to as kernels. Their return type must be void. Kernels have a special launch mechanism, and have to be launched from the host.
+
+There are some restrictions on the parameters of kernels. Kernels can’t:
+
+have a parameter of type std::initializer_list or va_list
+
+have a variable number of arguments
+
+use references as parameters
+
+use parameters having different sizes in host and device code, e.g. long double arguments, or structs containing long double members.
+
+use struct-type arguments which have different layouts in host and device code.
+
+Kernels can have variadic template parameters, but only one parameter pack, which must be the last item in the template parameter list.
+
+Note
+
+Unlike CUDA, HIP does not support dynamic parallelism, meaning that kernels can not be called from the device.
+
+Calling __global__ functions
+The launch mechanism for kernels differs from standard function calls, as they need an additional configuration, that specifies the grid and block dimensions (i.e. the amount of threads to be launched), as well as specifying the amount of shared memory per block and which stream to execute the kernel on.
+
+Kernels are called using the triple chevron <<<>>> syntax known from CUDA, but HIP also supports the hipLaunchKernelGGL macro.
+
+When using hipLaunchKernelGGL, the first five configuration parameters must be:
+
+symbol kernelName: The name of the kernel you want to launch. To support template kernels that contain several template parameters separated by use the HIP_KERNEL_NAME macro to wrap the template instantiation (HIPIFY inserts this automatically).
+
+dim3 gridDim: 3D-grid dimensions that specifies the number of blocks to launch.
+
+dim3 blockDim: 3D-block dimensions that specifies the number of threads in each block.
+
+size_t dynamicShared: The amount of additional shared dynamic memory to allocate per block.
+
+hipStream_t: The stream on which to run the kernel. A value of 0 corresponds to the default stream.
+
+The kernel arguments are listed after the configuration parameters.
+
+.. literalinclude:: ../tools/example_codes/calling_global_functions.hip
+    :start-after: // [sphinx-start]
+    :end-before: // [sphinx-end]
+    :language: cpp
+Inline qualifiers
+HIP adds the __noinline__ and __forceinline__ function qualifiers.
+
+__noinline__ is a hint to the compiler to not inline the function, whereas __forceinline__ forces the compiler to inline the function. These qualifiers can be applied to both __host__ and __device__ functions.
+
+__noinline__ and __forceinline__ can not be used in combination.
+
+__launch_bounds__
+GPU multiprocessors have a fixed pool of resources (primarily registers and shared memory) which are shared by the actively running warps. Using more resources per thread can increase executed instructions per cycle but reduces the resources available for other warps and may therefore limit the occupancy, i.e. the number of warps that can be executed simultaneously. Thus GPUs have to balance resource usage between instruction- and thread-level parallelism.
+
+__launch_bounds__ allows the application to provide hints that influence the resource (primarily registers) usage of the generated code. It is a function attribute that must be attached to a __global__ function:
+
+__global__ void __launch_bounds__(MAX_THREADS_PER_BLOCK, MIN_WARPS_PER_EXECUTION_UNIT)
+kernel_name(/*args*/);
+
+********************************
+Kernel language C++ support
+The HIP host API can be compiled with any conforming C++ compiler, as long as no kernel launch is present in the code.
+
+To compile device code and include kernel launches, a compiler with full HIP support is needed, such as amdclang++. For more information, see ROCm compilers.
+
+In host code all modern C++ standards that are supported by the compiler can be used. Device code compilation has some restrictions on modern C++ standards, but in general also supports all C++ standards. The biggest restriction is the reduced support of the C++ standard library in device code, as functions are only compiled for the host by default. An exception to this are constexpr functions that are resolved at compile time and can be used in device code. There are ongoing efforts to implement C++ standard library functionality with libhipcxx.
+
+Supported kernel language C++ features
+This section describes HIP’s kernel language C++ feature support for the different versions of the standard.
+
+General C++ features
+Exception handling
+An important difference between the host and device code C++ support is exception handling. In device code, exceptions aren’t available due to the hardware architecture. The device code must use return codes to handle errors.
+
+Assertions
+The assert function is supported in device code. Assertions are used for debugging purposes. When the input expression equals zero, the execution will be stopped. HIP provides its own implementation for assert for usage in device code in hip/hip_runtime.h.
+
+void assert(int input)
+HIP also provides the function abort() which can be used to terminate the application when terminal failures are detected. It is implemented using the __builtin_trap() function.
+
+This function produces a similar effect as using CUDA’s asm("trap"). In HIP, abort() terminates the entire application, while in CUDA, asm("trap") only terminates the current kernel and the application continues to run.
+
+printf
+printf is supported in device code, and can be used just like in host code.
+
+#include <hip/hip_runtime.h>
+
+__global__ void run_printf() { printf("Hello World\n"); }
+
+int main() {
+  run_printf<<<dim3(1), dim3(1), 0, 0>>>();
+}
+Device-Side Dynamic Global Memory Allocation
+Device code can use new or malloc to dynamically allocate global memory on the device, and delete or free to deallocate global memory.
+
+Classes
+Classes work on both host and device side, with some constraints on the device side.
+
+Member functions with the appropriate qualifiers can be called in host and device code, and the corresponding overload is executed.
+
+virtual member functions are also supported, however calling these functions from the host if the object was created on the device, or the other way around, is undefined behaviour.
+
+The __host__, __device__, __managed__, __shared__ and __constant__ memory space qualifiers can not be applied to member variables.
+
+C++11 support
+constexpr
+Full support in device code. constexpr implicitly defines __host__ __device__, so standard library functions that are marked constexpr can be used in device code. constexpr variables can be used in both host and device code.
+
+Lambdas
+Lambdas are implicitly marked with __host__ __device__. To mark them as only executable for the host or the device, they can be explicitly marked like any other function. There are restrictions on variable capture, however. Host and device specific variables can only be accessed on other devices or the host by explicitly copying them. Accessing captured the variables by reference, when the variable is not located on the executing device or host, causes undefined behaviour.
+
+Polymorphic function wrappers
+HIP does not support the polymorphic function wrapper std::function
+
+C++14 support
+All C++14 language features are supported.
+
+C++17 support
+All C++17 language features are supported.
+
+******************************************
+Porting NVIDIA CUDA code to HIP
+HIP eases the porting of existing NVIDIA CUDA code into the HIP environment, enabling you to run your application on AMD GPUs. This topic describes the available tools and provides practical suggestions for porting your CUDA code and working through common issues.
+
+CUDA provides separate driver and runtime APIs, while HIP mostly uses a single API. The two CUDA APIs generally provide similar functionality and are mostly interchangeable. However, the CUDA driver API provides fine-grained control over kernel-level initialization, contexts, and module management, while the runtime API automatically manages contexts and modules. The driver API is suitable for applications that require tight integration with other systems or advanced control over GPU resources.
+
+Driver API calls begin with the prefix cu, while runtime API calls begin with the prefix cuda. For example, the driver API contains cuEventCreate, while the runtime API contains cudaEventCreate, which has similar functionality.
+
+The driver API offers two additional low-level functionalities not exposed by the runtime API: module management cuModule* and context management cuCtx* APIs.
+
+The HIP runtime API includes corresponding functions for both the CUDA driver and the CUDA runtime API. The module and context functionality are available with the hipModule and hipCtx prefixes, and driver API functions are usually prefixed with hipDrv.
+
+Porting a CUDA project
+HIP projects can target either AMD or NVIDIA platforms. HIP is a marshalling language that provides a thin-layer mapping to functions in the AMD ROCm language, or to CUDA functions. To compile the HIP code, you can use amdclang++, also called HIP-Clang, or you can use hipcc to enable compilation by nvcc to produce CUDA executables, as described in Compilation and platforms.
+
+Because HIP is a marshalling language that can be compiled by nvcc, mixing HIP code with CUDA code results in valid application code. This enables users to incrementally port a CUDA project to HIP, and still compile and test the code during the transition.
+
+The only notable exception is hipError_t, which is not just an alias to cudaError_t. In these cases, HIP provides functions to convert between the error code spaces:
+
+hipErrorToCudaError()
+
+hipErrorToCUResult()
+
+hipCUDAErrorTohipError()
+
+hipCUResultTohipError()
+
+General Tips
+Starting to port on an NVIDIA machine is often the easiest approach, as the code can be tested for functionality and performance even if not fully ported to HIP.
+
+Once the CUDA code is ported to HIP and is running on the CUDA machine, compile the HIP code for an AMD machine.
+
+You can handle platform-specific features through conditional compilation as described in Compilation and platforms.
+
+Use the HIPIFY tools to automatically convert CUDA code to HIP, as described in the following section.
+
+Using HIPIFY
+HIPIFY is a collection of tools that automatically translate CUDA code to HIP code. For example, cuEventCreate is translated to hipEventCreate(). HIPIFY tools also convert error codes from the driver namespace and coding conventions to the equivalent HIP error code. HIP unifies the APIs for these common functions.
+
+There are two types of HIPIFY available:
+
+hipify-clang is a Clang-based tool that parses code, translates it into an Abstract Syntax Tree, and generates the HIP source. For this, hipify-clang needs to be able to actually compile the code, so the CUDA code needs to be correct, and a CUDA install with all necessary headers must be provided.
+
+hipify-perl uses pattern matching, to translate the CUDA code to HIP. It does not require a working CUDA installation, and can also convert CUDA code, that is not syntactically correct. It is therefore easier to set up and use, but is not as powerful as hipfiy-clang.
+
+Memory copy functions
+When copying memory, the CUDA driver includes the memory direction in the name of the API (cuMemcpyHtoD), while the CUDA runtime API provides a single memory copy API with a parameter that specifies the direction. It also supports a default direction where the runtime determines the direction automatically.
+
+HIP provides both versions, for example, hipMemcpyHtoD() as well as hipMemcpy(). The first version might be faster in some cases because it avoids any host overhead to detect the direction of the memory copy.
+
+Address spaces
+HIP-Clang defines a process-wide address space where the CPU and all devices allocate addresses from a single unified pool. This means addresses can be shared between contexts. Unlike CUDA, a new context does not create a new address space for the device.
+
+Context stack behavior differences
+HIP-Clang creates a primary context when the HIP API is called. In CUDA driver API code, HIP-Clang creates a primary context while HIP/NVCC has an empty context stack. HIP-Clang pushes the primary context to the context stack when it is empty. This can lead to subtle differences in applications which mix the runtime and driver APIs.
+
+Scanning CUDA source to scope the translation
+The --examine option, tells the hipify tools to do a test-run without changing the source files, but instead scanning the files to determine which files contain CUDA code and how much of that code can automatically be hipified.
+
+There also are hipexamine-perl.sh or hipexamine.sh (for hipify-clang) scripts to automatically scan directories.
+
+For example, the following is a scan of one of the convolutionSeparable sample from cuda-samples:
+
+> cd Samples/2_Concepts_and_Techniques/convolutionSeparable/
+> hipexamine-perl.sh
+[HIPIFY] info: file './convolutionSeparable.cu' statistics:
+  CONVERTED refs count: 2
+  TOTAL lines of code: 214
+  WARNINGS: 0
+[HIPIFY] info: CONVERTED refs by names:
+  cooperative_groups.h => hip/hip_cooperative_groups.h: 1
+  cudaMemcpyToSymbol => hipMemcpyToSymbol: 1
+
+[HIPIFY] info: file './main.cpp' statistics:
+  CONVERTED refs count: 13
+  TOTAL lines of code: 174
+  WARNINGS: 0
+[HIPIFY] info: CONVERTED refs by names:
+  cudaDeviceSynchronize => hipDeviceSynchronize: 2
+  cudaFree => hipFree: 3
+  cudaMalloc => hipMalloc: 3
+  cudaMemcpy => hipMemcpy: 2
+  cudaMemcpyDeviceToHost => hipMemcpyDeviceToHost: 1
+  cudaMemcpyHostToDevice => hipMemcpyHostToDevice: 1
+  cuda_runtime.h => hip/hip_runtime.h: 1
+
+[HIPIFY] info: file 'GLOBAL' statistics:
+  CONVERTED refs count: 15
+  TOTAL lines of code: 512
+  WARNINGS: 0
+[HIPIFY] info: CONVERTED refs by names:
+  cooperative_groups.h => hip/hip_cooperative_groups.h: 1
+  cudaDeviceSynchronize => hipDeviceSynchronize: 2
+  cudaFree => hipFree: 3
+  cudaMalloc => hipMalloc: 3
+  cudaMemcpy => hipMemcpy: 2
+  cudaMemcpyDeviceToHost => hipMemcpyDeviceToHost: 1
+  cudaMemcpyHostToDevice => hipMemcpyHostToDevice: 1
+  cudaMemcpyToSymbol => hipMemcpyToSymbol: 1
+  cuda_runtime.h => hip/hip_runtime.h: 1
+hipexamine-perl.sh reports how many CUDA calls are going to be converted to HIP (e.g. CONVERTED refs count: 2), and lists them by name together with their corresponding HIP-version (see the lines following [HIPIFY] info: CONVERTED refs by names:). It also lists the total lines of code for the file and potential warnings. In the end it prints a summary for all files.
+
+
+****************************
+Programming for HIP runtime compiler (RTC)
+HIP supports the kernels compilation at runtime with the hiprtc* APIs. Kernels can be stored as a text string and can be passed to HIPRTC APIs alongside options to guide the compilation.
+
+Note
+
+Device code compilation via HIPRTC uses the __hip_internal namespace instead of the std namespace to avoid namespace collision.
+
+This library can be used for compilation on systems without AMD GPU drivers installed (offline compilation). However, running the compiled code still requires both the HIP runtime library and GPU drivers on the target system.
+
+Developers can bundle this library with their application.
+
+HIPRTC leverages AMD’s Code Object Manager API (Comgr) internally, which is designed to simplify linking, compiling, and inspecting code objects. For more information, see the llvm-project/amd/comgr/README.
+
+Comgr may cache HIPRTC compilations. To force full recompilation for each HIPRTC API invocation, set AMD_COMGR_CACHE=0.
+
+When viewing the README in the Comgr GitHub repository you should look at a specific branch of interest, such as docs/6.3.0 or docs/6.4.1, rather than the default branch.
+
+Compilation APIs
+To use HIPRTC functionality the header needs to be included:
+
+#include <hip/hiprtc.h>
+Note
+
+Prior to the 7.0 release, the HIP runtime included the hipRTC library. With the 7.0 release, the library is separate and must be specifically included as shown above.
+
+Kernels can be stored in a string:
+
+static constexpr auto kernel_source {
+R"(
+    extern "C"
+    __global__ void vector_add(float* output, float* input1, float* input2, size_t size) {
+      int i = threadIdx.x;
+      if (i < size) {
+        output[i] = input1[i] + input2[i];
+      }
+    }
+)"};
+To compile this kernel, it needs to be associated with hiprtcProgram type, which is done by declaring hiprtcProgram prog; and associating the string of kernel with this program:
+
+hiprtcCreateProgram(&prog,                 // HIPRTC program handle
+                    kernel_source,         // HIP kernel source string
+                    "vector_add.cpp",      // Name of the HIP program, can be null or an empty string
+                    0,                     // Number of headers
+                    NULL,                  // Header sources
+                    NULL);                 // Name of header files
+hiprtcCreateProgram() API also allows you to add headers which can be included in your RTC program. For online compilation, the compiler pre-defines HIP device API functions, HIP specific types and macros for device compilation, but doesn’t include standard C/C++ headers by default. Users can only include header files provided to hiprtcCreateProgram().
+
+After associating the kernel string with hiprtcProgram, you can now compile this program using:
+
+hiprtcCompileProgram(prog,     // hiprtcProgram
+                    0,         // Number of options
+                    options);  // Clang Options [Supported Clang Options](clang_options.md)
+hiprtcCompileProgram() returns a status value which can be converted to string via hiprtcGetErrorString(). If compilation is successful, hiprtcCompileProgram() will return HIPRTC_SUCCESS.
+
+if the compilation fails or produces warnings, you can look up the logs via:
+
+size_t logSize;
+hiprtcGetProgramLogSize(prog, &logSize);
+
+if (logSize) {
+  string log(logSize, '\0');
+  hiprtcGetProgramLog(prog, &log[0]);
+  // Corrective action with logs
+}
+If the compilation is successful, you can load the compiled binary in a local variable.
+
+size_t codeSize;
+hiprtcGetCodeSize(prog, &codeSize);
+
+vector<char> kernel_binary(codeSize);
+hiprtcGetCode(prog, kernel_binary.data());
+
+*******************************
+AMD compute language runtimes (CLR)
+CLR contains source codes for AMD’s compute languages runtimes: HIP and OpenCL™. CLR is the part of HIP runtime which is supported on the AMD ROCm platform, it provides a header and runtime library built on top of HIP-Clang compiler. For developers and users, CLR implements HIP runtime APIs including streams, events, and memory APIs, which is a object library that is linked with the application. The source codes for all headers and the library implementation are available on GitHub in the CLR repository.
+
+Project organization
+CLR includes the following source code,
+
+hipamd - contains implementation of HIP language on the AMD platform. It is hosted at clr/hipamd.
+
+opencl - contains implementation of OpenCL™ on AMD platform. It is hosted at clr/opencl.
+
+rocclr - contains ROCm compute runtime used in HIP and OpenCL™. This is hosted at clr/rocclr.
+
+How to build/install
+Prerequisites
+Please refer to Quick Start Guide in ROCm Docs.
+
+Building CLR requires rocm-hip-libraries meta package, which provides the pre-requisites for CLR.
+
+Linux
+Clone this repository
+
+cd clr && mkdir build && cd build
+For HIP
+
+cmake .. -DCLR_BUILD_HIP=ON -DHIP_COMMON_DIR=$HIP_COMMON_DIR
+
+``HIP_COMMON_DIR`` points to `HIP <https://github.com/ROCm/rocm-systems/tree/develop/projects/hip>`_.
+For OpenCL™
+
+cmake .. -DCLR_BUILD_OCL=ON
+make
+make install
+Users can also build OCL and HIP at the same time by passing -DCLR_BUILD_HIP=ON -DCLR_BUILD_OCL=ON to configure command.
+
+For detail instructions, please refer to build HIP.
+
+Test
+hip-tests is a separate repository hosted at hip-tests.
+
+To run hip-tests please go to the repository and follow the steps.
+
+Release notes
+HIP provides release notes in CLR change log, which has records of changes in each release.
+
+previous
+
+Programming for HIP runtime
+
+******************************
+HIP runtime API
+The HIP Runtime API reference includes descriptions of HIP functions, as well as global datatypes, enums, and structs.
+
+Modules
+The API is organized into modules based on functionality.
+
+Initialization and version
+
+Device management
+
+Execution control
+
+Error handling
+
+Stream management
+
+Stream memory operations
+
+Event management
+
+Memory management
+
+Memory management (deprecated)
+
+External resource interoperability
+
+Stream ordered memory allocator
+
+Managed memory
+
+Virtual memory management
+
+Texture management
+
+Texture management (deprecated)
+
+Surface object
+
+Peer to peer device memory access
+
+Context management [deprecated]
+
+Module management
+
+Occupancy
+
+Profiler control
+
+Launch API
+
+Runtime compilation
+
+Callback activity APIs
+
+Graph management
+
+OpenGL interoperability
+
+Graphics interoperability
+
+Cooperative groups
+
+Global defines, enums, structs and files
+The structs, define macros, enums and files in the HIP runtime API.
+
+global_enum_defines_reference
+
+driver_types_reference
+
+Data Structures
+
+File List
+
+
+******************************
+HIP complex math API
+HIP provides built-in support for complex number operations through specialized types and functions, available for both single-precision (float) and double-precision (double) calculations. All complex types and functions are available on both host and device.
+
+For any complex number z, the form is:
+
+where x is the real part and y is the imaginary part.
+
+Complex Number Types
+A brief overview of the specialized data types used to represent complex numbers in HIP, available in both single and double precision formats.
+
+Type
+
+Description
+
+hipFloatComplex
+
+Complex number using single-precision (float) values
+(note: hipComplex is an alias of hipFloatComplex)
+hipDoubleComplex
+
+Complex number using double-precision (double) values
+
+Complex Number Functions
+Note
+
+Changes have been made to small vector constructors for hipComplex and hipFloatComplex initialization, such as float2 and int4. If your code previously relied on a single value to initialize all components within a vector or complex type, you might need to update your code.
+
+A comprehensive collection of functions for creating and manipulating complex numbers, organized by functional categories for easy reference.
+
+Type Construction
+Functions for creating complex number objects and extracting their real and imaginary components.
+
+
+Single Precision
+Function
+
+Description
+
+hipFloatComplex
+make_hipFloatComplex(
+float a,
+float b
+)
+Creates a complex number
+(note: make_hipComplex is an alias of make_hipFloatComplex)
+float
+hipCrealf(
+hipFloatComplex z
+)
+Returns real part of z
+float
+hipCimagf(
+hipFloatComplex z
+)
+Returns imaginary part of z
+
+Double Precision
+Basic Arithmetic
+Operations for performing standard arithmetic with complex numbers, including addition, subtraction, multiplication, division, and fused multiply-add.
+
+
+Single Precision
+Function
+
+Description
+
+hipFloatComplex
+hipCaddf(
+hipFloatComplex p,
+hipFloatComplex q
+)
+Addition of two single-precision complex values
+hipFloatComplex
+hipCsubf(
+hipFloatComplex p,
+hipFloatComplex q
+)
+Subtraction of two single-precision complex values
+hipFloatComplex
+hipCmulf(
+hipFloatComplex p,
+hipFloatComplex q
+)
+Multiplication of two single-precision complex values
+hipFloatComplex
+hipCdivf(
+hipFloatComplex p,
+hipFloatComplex q
+)
+Division of two single-precision complex values
+ 
+
+
+*********************************
+CUDA to HIP API Function Comparison
+This page introduces key syntax differences between CUDA and HIP APIs with a focused code example and comparison table. For a complete list of mappings, visit HIPIFY.
+
+The following CUDA code example illustrates several CUDA API syntaxes.
+
+#include <cuda_runtime.h>
+
+#include <iostream>
+#include <vector>
+
+__global__ void block_reduction(const float* input, float* output, int num_elements)
+{
+    extern __shared__ float s_data[];
+
+    int tid = threadIdx.x;
+    int global_id = blockDim.x * blockIdx.x + tid;
+
+    if (global_id < num_elements)
+    {
+        s_data[tid] = input[global_id];
+    }
+    else
+    {
+        s_data[tid] = 0.0f;
+    }
+    __syncthreads();
+
+    for (int stride = blockDim.x / 2; stride > 0; stride >>= 1)
+    {
+        if (tid < stride)
+        {
+            s_data[tid] += s_data[tid + stride];
+        }
+        __syncthreads();
+    }
+
+    if (tid == 0)
+    {
+        output[blockIdx.x] = s_data[0];
+    }
+}
+
+int main()
+{
+    int threads = 256;
+    const int num_elements = 50000;
+
+    std::vector<float> h_a(num_elements);
+    std::vector<float> h_b((num_elements + threads - 1) / threads);
+
+    for (int i = 0; i < num_elements; ++i)
+    {
+        h_a[i] = rand() / static_cast<float>(RAND_MAX);
+    }
+
+    float *d_a, *d_b;
+    cudaMalloc(&d_a, h_a.size() * sizeof(float));
+    cudaMalloc(&d_b, h_b.size() * sizeof(float));
+
+    cudaStream_t stream;
+    cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking);
+
+    cudaEvent_t start_event, stop_event;
+    cudaEventCreate(&start_event);
+    cudaEventCreate(&stop_event);
+
+    cudaMemcpyAsync(d_a, h_a.data(), h_a.size() * sizeof(float), cudaMemcpyHostToDevice, stream);
+
+    cudaEventRecord(start_event, stream);
+
+    int blocks = (num_elements + threads - 1) / threads;
+    block_reduction<<<blocks, threads, threads * sizeof(float), stream>>>(d_a, d_b, num_elements);
+
+    cudaMemcpyAsync(h_b.data(), d_b, h_b.size() * sizeof(float), cudaMemcpyDeviceToHost, stream);
+
+    cudaEventRecord(stop_event, stream);
+    cudaEventSynchronize(stop_event);
+
+    float milliseconds = 0.f;
+    cudaEventElapsedTime(&milliseconds, start_event, stop_event);
+    std::cout << "Kernel execution time: " << milliseconds << " ms\n";
+
+    cudaFree(d_a);
+    cudaFree(d_b);
+
+    cudaEventDestroy(start_event);
+    cudaEventDestroy(stop_event);
+    cudaStreamDestroy(stream);
+
+    return 0;
+}
+
+************************************
+HIP-Basic Examples
+Summary
+The examples in this subdirectory showcase the functionality of the HIP runtime. The examples build on Linux for the ROCm (AMD GPU) backend. Some examples additionally support Windows, some examples additionally support the CUDA (NVIDIA GPU) backend.
+
+Prerequisites
+Linux
+CMake (at least version 3.21)
+OR GNU Make - available via the distribution's package manager
+ROCm (at least version 6.x.x)
+Windows
+Visual Studio 2019 or 2022 with the "Desktop Development with C++" workload
+ROCm toolchain for Windows (No public release yet)
+The Visual Studio ROCm extension needs to be installed to build with the solution files.
+CMake (optional, to build with CMake. Requires at least version 3.21)
+Ninja (optional, to build with CMake)
+Building
+Linux
+Make sure that the dependencies are installed, or use one of the provided Dockerfiles to build and run the examples in a containerized environment.
+
+Using CMake
+All examples in the HIP-Basic subdirectory can either be built by a single CMake project or be built independently.
+
+$ cd HIP-Basic
+$ cmake -S . -B build (on ROCm) or $ cmake -S . -B build -D GPU_RUNTIME=CUDA (on CUDA, when supported)
+$ cmake --build build
+Using Make
+All examples can be built by a single invocation to Make or be built independently.
+
+$ cd HIP-Basic
+$ make (on ROCm) or $ make GPU_RUNTIME=CUDA (on CUDA, when supported)
+Windows
+Not all HIP runtime examples support building on Windows. See the README file in the directory of the example for more details.
+
+Visual Studio
+Visual Studio solution files are available for the individual examples. To build all supported HIP runtime examples open the top level solution file ROCm-Examples-VS2019.sln and filter for HIP-Basic.
+
+For more detailed build instructions refer to the top level README.md.
+
+CMake
+All examples in the HIP-Basic subdirectory can either be built by a single CMake project or be built independently. For build instructions refer to the top-level README.md.
+
+
+**************************
+GPU programming patterns
+GPU programming patterns are fundamental algorithmic structures that enable efficient parallel computation on GPUs. Understanding these patterns is essential for developers looking to effectively harness the massive parallel processing capabilities of modern GPUs for scientific computing, machine learning, image processing, and other computationally intensive applications.
+
+These tutorials describe core programming patterns demonstrating how to efficiently implement common parallel algorithms using the HIP runtime API and kernel extensions. Each pattern addresses a specific computational challenge and provides practical implementations with detailed explanations.
+
+Common GPU programming challenges
+GPU programming introduces unique challenges not present in traditional CPU programming:
+
+Memory coherence: GPUs lack robust cache coherence mechanisms, requiring careful coordination when multiple threads access shared memory.
+
+Race conditions: Concurrent memory access requires atomic operations or careful algorithm design.
+
+Irregular parallelism: Real-world algorithms often have varying amounts of parallel work across iterations.
+
+CPU-GPU communication: Data transfer overhead between host and device must be minimized.
+
+Tutorial overview
+This collection provides comprehensive tutorials on essential GPU programming patterns:
+
+Two-dimensional kernels: Processing grid-structured data such as matrices and images.
+
+Stencil operations: Updating array elements based on neighboring values.
+
+Atomic operations: Ensuring data integrity during concurrent memory access.
+
+Multi-kernel applications: Coordinating multiple GPU kernels to solve complex problems.
+
+CPU-GPU cooperation: Strategic work distribution between CPU and GPU.
+
+Prerequisites
+To get the most from these tutorials, you should have:
+
+Basic understanding of C/C++ programming.
+
+Familiarity with parallel programming concepts.
+
+HIP runtime environment installed (see Install HIP).
+
+Basic knowledge of GPU architecture (recommended).
+
+Getting started
+Each tutorial is self-contained and can be studied independently, though we recommend following the order presented for a comprehensive understanding:
+
+Start with Two-dimensional kernels to understand basic GPU thread organization and memory access patterns.
+
+Progress to stencil operations to learn about neighborhood dependencies.
+
+Study atomic operations to understand concurrent memory access.
+
+Explore multi-kernel programming for complex algorithmic patterns.
+
+
+
+*******************************
+Reduction
+Reduction is a common algorithmic operation used in parallel programming to reduce an array of elements into a shorter array of elements or a single value. This document exploits reduction to introduce some key considerations while designing and optimizing GPU algorithms.
+
+This document is a rejuvenation and extension of the invaluable work of Mark Harris. While the author approaches the topic with a less naive approach, reviewing some original material is valuable to see how much the underlying hardware has changed. This document provides a greater insight to demonstrate progress.
+
+The algorithm
+Reduction has many names depending on the domain; in functional programming it’s referred to as fold, in C++, it’s called std::accumulate and in C++17, as std::reduce. A reduction takes a range of inputs and “reduces” the given range with a binary operation to a singular or scalar output. Canonically, a reduction requires a “zero” element that bootstraps the algorithm and serves as one of the initial operands to the binary operation. The “zero” element is generally called identity or neutral element in the group theory, which implies that it is an operand that doesn’t change the result. Some typical use cases are: calculating a sum or normalizing a dataset and finding the maximum value in the dataset. The latter use case is discussed further in this tutorial.
+
+****************************
+Cooperative groups
+This tutorial demonstrates the basic concepts of cooperative groups in the HIP (Heterogeneous-computing Interface for Portability) programming model and the most essential tooling supporting it. This topic also reviews the commonalities of heterogeneous APIs. Familiarity with the C/C++ compilation model and the language is assumed.
+
+Prerequisites
+To follow this tutorial, you’ll need properly installed drivers and a HIP compiler toolchain to compile your code. Because ROCm HIP supports compiling and running on Linux and Microsoft Windows with AMD and NVIDIA GPUs, review the HIP development package installation before starting this tutorial. For more information, see Install HIP.
+
+Simple HIP Code
+To become familiar with heterogeneous programming, review the SAXPY tutorial and the first HIP code subsection. Compiling is also described in that tutorial.
+
+Tiled partition
+You can use tiled partition to calculate the sum of partition_size length sequences and the sum of result_size/ BlockSize length sequences. The host-side reference implementation is the following:
+
+// Host-side function to perform the same reductions as executed on the GPU
+std::vector<unsigned int> ref_reduced(const unsigned int        partition_size,
+                                      std::vector<unsigned int> input)
+{
+    const unsigned int        input_size  = input.size();
+    const unsigned int        result_size = input_size / partition_size;
+    std::vector<unsigned int> result(result_size);
+
+    for(unsigned int i = 0; i < result_size; i++)
+    {
+        unsigned int partition_result = 0;
+        for(unsigned int j = 0; j < partition_size; j++)
+        {
+            partition_result += input[partition_size * i + j];
+        }
+        result[i] = partition_result;
+    }
+
+    return result;
+}
+Device-side code
+To calculate the sum of the sets of numbers, the tutorial uses the shared memory-based reduction on the device side. The warp level intrinsics usage is not covered in this tutorial, unlike in the reduction tutorial. x input variable is a shared pointer, which needs to be synchronized after every value change. The thread_group input parameter can be thread_block_tile or thread_block because the thread_group is the parent class of these types. The val are the numbers to calculate the sum of. The returned results of this function return the final results of the reduction on thread ID 0 of the thread_group, and for every other thread, the function results are 0.
+
+/// \brief Summation of `unsigned int val`'s in `thread_group g` using shared memory `x`
+__device__ unsigned int reduce_sum(thread_group g, unsigned int* x, unsigned int val)
+{
+    // Rank of this thread in the group
+    const unsigned int group_thread_id = g.thread_rank();
+
+    // We start with half the group size as active threads
+    // Every iteration the number of active threads halves, until we processed all values
+    for(unsigned int i = g.size() / 2; i > 0; i /= 2)
+    {
+        // Store value for this thread in a shared, temporary array
+        x[group_thread_id] = val;
+
+        // Synchronize all threads in the group
+        g.sync();
+
+        // If our thread is still active, sum with its counterpart in the other half
+        if(group_thread_id < i)
+        {
+            val += x[group_thread_id + i];
+        }
+
+        // Synchronize all threads in the group
+        g.sync();
+    }
+
+    // Only the first thread returns a valid value
+    if(g.thread_rank() == 0)
+        return val;
+    else
+        return 0;
+}
+
+********************************
+
