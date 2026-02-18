@@ -549,4 +549,288 @@ hipcc -o vector_square vector_square.cpp
 
 ***************************
 **************************************
+OpenCL Guide
+<img width="1100" height="500" alt="image" src="https://github.com/user-attachments/assets/0fded6d9-495b-42e3-938f-4f19f3b346cb" />
+What is OpenCL?
+OpenCL (Open Computing Language) is an open, royalty-free standard for cross-platform, parallel programming of diverse accelerators found in supercomputers, cloud servers, personal computers, mobile devices and embedded platforms. OpenCL was created and is managed by the Khronos Group. OpenCL makes applications run faster and smoother by enabling them to use the parallel processing power in a system or device.
 
+OpenCL is widely used throughout the industry. Many silicon vendors ship OpenCL with their processors, including GPUs, DSPs and FPGAs. The OpenCL API specification enables each chip to have to have its OpenCL drivers tuned to its specific architecture. Having the same, standardized API available on many systems enable developers to widely deploy their applications to reach more customers while minimizing porting and support costs.
+
+To say they support conformant OpenCL, hardware vendors must become OpenCL Adopters and submit their conformance test results for review by the OpenCL Working Group at Khronos. You can view a list of hardware vendors with Conformant OpenCL Implementations on Khronos' OpenCL Adopter Page.
+<img width="1807" height="909" alt="image" src="https://github.com/user-attachments/assets/5a2cd270-072f-4c47-a662-2ce7eea84fc4" />
+
+
+
+
+OpenCL is widely deployed and used throughout the industry
+
+
+By enabling applications to tap into the power of accelerated parallel programming, OpenCL greatly improves the speed and responsiveness of a wide range of applications, engines and libraries - including professional creative tools, scientific and medical software, vision processing, and neural network training and inferencing.
+
+As well as being programmed directly by developers, OpenCL is also increasingly being used as a backend target for languages, compilers and machine learning stacks that need a portable API to reach into hardware acceleration for generated code.
+
+You can find a list of applications that use OpenCL on Wikipedia.
+
+********************************
+How Does OpenCL Work?
+OpenCL is a programming framework and runtime that enables a programmer to create small programs, called kernel programs (or kernels), that can be compiled and executed, in parallel, across any processors in a system. The processors can be any mix of different types, including CPUs, GPUs, DSPs, FPGAs or Tensor Processors - which is why OpenCL is often called a solution for heterogeneous parallel programming.
+
+The OpenCL framework contains two APIs. The Platform Layer API is run on the host CPU and is used first to enable a program to discover what parallel processors or compute devices are available in a system. By querying for what compute devices are available an application can run portably across diverse systems - adapting to different combinations of accelerator hardware. Once the compute devices are discovered, the Platform API enables the application to select and initialize the devices it wants to use.
+
+The second API is the Runtime API which enables the application's kernel programs to be compiled for the compute devices on which they are going to run, loaded in parallel onto those processors and executed. Once the kernel programs finish execution the Runtime API is used to gather the results.
+<img width="984" height="986" alt="image" src="https://github.com/user-attachments/assets/82c26ee2-deb8-4e10-9662-29b27eb14922" />
+
+******************
+Compiling and Executing OpenCL Kernels
+
+
+The most commonly used language for programming the kernels that are compiled and executed across the available parallel processors is called OpenCL C. OpenCL C is based on C99 and is defined as part of the OpenCL specification. Kernels written in other programming languages may be executed using OpenCL by compiling to an intermediate program representation, such as SPIR-V.
+
+OpenCL is a low-level programming framework so the programmer has direct, explicit control over where and when kernels are run, how the memory they use is allocated and how the compute devices and host CPU synchronize their operations to ensure that data and computed results flow correctly - even when the host and compute kernels are running in parallel.
+
+Executing an OpenCL Program
+OpenCL regards a kernel program as the basic unit of executable code (similar to a C function). Kernels can execute with data or task-parallelism. An OpenCL program is a collection of kernels and functions (similar to dynamic library with run-time linking).
+
+An OpenCL command queue is used by the host application to send kernels and data transfer functions to a device for execution. By enqueueing commands into a command queue, kernels and data transfer functions may execute asynchronously and in parallel with application host code.
+
+The kernels and functions in a command queue can be executed in-order or out-of-order. A compute device may have multiple command queues.
+<img width="1148" height="940" alt="image" src="https://github.com/user-attachments/assets/a4e82dbf-3ece-41cf-9dbe-ac06dc3b36f9" />
+
+*******************
+A complete sequence for executing an OpenCL program is:
+
+Query for available OpenCL platforms and devices
+
+Create a context for one or more OpenCL devices in a platform
+
+Create and build programs for OpenCL devices in the context
+
+Select kernels to execute from the programs
+
+Create memory objects for kernels to operate on
+
+Create command queues to execute commands on an OpenCL device
+
+Enqueue data transfer commands into the memory objects, if needed
+
+Enqueue kernels into the command queue for execution
+
+Enqueue commands to transfer data back to the host, if needed
+
+
+**************************************
+Programming OpenCL Kernels
+An OpenCL application is split into host code and device kernel code. Host code is typically written using a general programming language such as C or C++ and compiled by a conventional compiler for execution on the host CPU. OpenCL bindings for other languages are also available, such as Python.
+
+Device kernels that are written in OpenCL C, which is based on C99, can be ingested and compiled by the OpenCL driver during execution of an application using runtime OpenCL API calls. This is called online compilation and is supported by all OpenCL drivers. OpenCL C is a subset of ISO C99 with language extensions for parallelism, well-defined numerical accuracy (IEEE 754 rounding with specified max error) and a rich set of built-in functions including cross, dot, sin, cos, pow, log etc.
+<img width="1834" height="848" alt="image" src="https://github.com/user-attachments/assets/76d8ad0f-4273-41a9-bb1f-ed888b25b78b" />
+
+The OpenCL specification also enables optional offline compilation where the kernel program is pre-compiled into a binary format that a particular driver can ingest. Offline compilation can add significant value to developers by:
+
+Speeding OpenCL application execution by eliminating or minimizing kernel code compilation time.
+Leveraging alternative kernel languages and tools to produce executable binaries.
+There are two offline compilation approaches:
+
+Kernels that are compiled online by the driver can be retrieved by the application using the clGetProgramInfo call. Those cached, device-specific, kernels can then be later reloaded for execution on the same device instead of re-compiling those kernels from the source code.
+Offline compilers can be invoked independently before the OpenCL application executes to generate binaries to load and run on the device during application execution.
+<img width="926" height="527" alt="image" src="https://github.com/user-attachments/assets/24c4d527-2a56-4de2-b6e7-879e3e412d1c" />
+
+
+<img width="2018" height="835" alt="image" src="https://github.com/user-attachments/assets/64330e27-0928-4cef-8037-e82edebe5123" />
+
+
+****************************************
+OpenCL Programming Model
+To understand how to program OpenCL in more detail let's consider the Platform, Execution and Memory Models. The three models interact and define OpenCL's essential operation.
+
+Platform Model
+The OpenCL Platform Model describes how OpenCL understands the compute resources in a system to be topologically connected.
+
+A host is connected to one or more OpenCL compute devices. Each compute device is collection of one or more compute units where each compute unit is composed of one or more processing elements. Processing elements execute code with SIMD (Single Instruction Multiple Data) or SPMD (Single Program Multiple Data) parallelism.
+<img width="1201" height="654" alt="image" src="https://github.com/user-attachments/assets/fd32346d-1eff-4c52-ac1d-573d5eb08ce9" />
+
+Execution Model
+OpenCL's clEnqueueNDRangeKernel command enables a single kernel program to be initiated to operate in parallel across an N-dimensional data structure. Using a two-dimensional image as a example, the size of the image would be the NDRange, and each pixel is called a work-item that a copy of kernel running on a single processing element will operate on.
+
+As we saw in the Platform Model section above, it is common for processors to group processing elements into compute units for execution efficiency. Therefore, when using the clEnqueueNDRangeKernel command, the program specifies a work-group size that represents groups of individual work-items in an NDRange that can be accommodated on a compute unit. Work-items in the same work-group are able to share local memory, synchronize more easily using work-group barriers, and cooperate more efficiently using work-group functions such as async_work_group_copy that are not available between work-items in separate work-groups.
+
+<img width="1058" height="910" alt="image" src="https://github.com/user-attachments/assets/1ec02115-0d13-4348-b91a-ca04ab440d51" />
+
+Memory Model
+OpenCL has a hierarchy of memory types:
+
+Host memory - available to the host CPU
+
+Global/Constant memory - available to all compute units in a compute device
+
+Local memory - available to all the processing elements in a compute unit
+
+Private memory - available to a single processing element
+<img width="1128" height="984" alt="image" src="https://github.com/user-attachments/assets/0987e508-94a5-4e8a-a84f-725a50d767d0" />
+
+********************
+C++ for OpenCL
+The OpenCL working group has transitioned from the original OpenCL C++ kernel language first defined in OpenCL 2.2 to the community developed C++ for OpenCL kernel language that provides improved features and compatibility with OpenCL C.
+
+C++ for OpenCL enables developers to use most C++ features in kernel code while keeping familiar OpenCL constructs, syntax, and semantics from OpenCL C. This facilitates a smooth transition to new C++ features in existing OpenCL applications and does not require changing familiar development flows or tools. The main design goal of C++ for OpenCL is to reapply OpenCL-specific concepts to C++ in the same way as OpenCL C applies them to C. Aside from minor exceptions OpenCL C is a valid subset of C++ for OpenCL. Overall, kernel code written in C++ for OpenCL looks just like code written in OpenCL C with some extra C++ features available for convenience. C++ for OpenCL supports features from C++17.
+
+
+<img width="964" height="835" alt="image" src="https://github.com/user-attachments/assets/4349533b-bf0a-4a77-a76d-323db005d2b7" />
+
+
+**********************
+Experimental support for C++ for OpenCL was added in Clang 9 with bug fixes and improvements in Clang 10.
+
+You can check out C++ for OpenCL in Compiler Explorer.
+
+Documentation
+The language documentation can be found in releases of OpenCL-Docs with the first official version 1.0 (see also the latest WIP version html or pdf).
+
+This documentation provides details about the language semantics as well as differences to OpenCL C and C++.
+
+Example
+The following code snippet illustrates how to implement kernels with complex number arithmetic using C++ features.
+
+// This example demonstrates a convenient way to implement
+// kernel code with complex number arithmetic using various
+// C++ features.
+
+// Define a class Complex, that can perform complex number
+// computations with various precision when different
+// types for T are used - double, float, half...
+template<typename T>
+class complex_t {
+T m_re; // Real component.
+T m_im; // Imaginary component.
+
+public:
+complex_t(T re, T im): m_re{re}, m_im{im} {};
+complex_t operator*(const complex_t &other) const
+{
+  return {m_re * other.m_re - m_im * other.m_im,
+           m_re * other.m_im + m_im * other.m_re};
+}
+int get_re() const { return m_re; }
+int get_im() const { return m_im; }
+};
+
+// A helper function to compute multiplication over
+// complex numbers read from the input buffer and
+// to store the computed result into the output buffer.
+template<typename T>
+void compute_helper(global T *in, global T *out) {
+  auto idx = get_global_id(0);	
+  // Every work-item uses 4 consecutive items from the input
+  // buffer - two for each complex number.
+  auto offset = idx * 4;
+  auto num1 = complex_t{in[offset], in[offset + 1]};
+  auto num2 = complex_t{in[offset + 2], in[offset + 3]};
+  // Perform complex number multiplication.
+  auto res = num1 * num2;
+  // Every work-item writes 2 consecutive items to the output
+  // buffer.
+  out[idx * 2] = res.get_re();
+  out[idx * 2 + 1] = res.get_im();
+}
+
+// This kernel can be used for complex number multiplication
+// in single precision.
+kernel void compute_sp(global float *in, global float *out) {
+  compute_helper(in, out);
+}
+
+// This kernel can be used for complex number multiplication
+// in half precision.
+#pragma OPENCL EXTENSION cl_khr_fp16: enable
+kernel void compute_hp(global half *in, global half *out) {
+  compute_helper(in, out); 
+}
+Developing kernels with C++ for OpenCL
+C++ for OpenCL sources can be developed and compiled just like OpenCL C sources. However due to the increased growth of application complexity especially those that benefit most from a rich variety of C++ features and high-level abstractions, it is expected that the majority of C++ for OpenCL kernels will be compiled offline. Offline compilation also provides the ability to take advantage of various newest features in open source tools and frameworks without waiting for their integration into the vendor toolchains.
+
+Offline compilation
+Clang provides support for C++ for OpenCL using the same interface as for OpenCL C.
+
+clang -cl-std=CLC++ test.cl
+clang test.clcpp
+More details can be found in its UsersManual. In the majority of cases the generated binary can be used in existing drivers. C++ for OpenCL version 1.0 is developed against OpenCL 2.0. Depending on the features used, drivers from other versions (e.g. OpenCL 3.0) might be able to load the binaries produced with C++ for OpenCL v1.0 too. Use of global objects and static function objects with non-trivial constructors is not supported in a portable way, refer to the following clang documentation for details.
+
+Clang only supports a limited number of vendors and therefore to allow executing the binaries from C++ for OpenCL on more devices it is recommended to generate portable executable formats. C++ for OpenCL kernel sources can be compiled into SPIR-V using open source tools and then loaded into drivers supporting SPIR-V. C++ for OpenCL 1.0 mainly requires SPIR-V 1.0 plus SPIR-V 1.2 for some features.
+
+The bugs and implementation of new features in clang can be tracked via the OpenCL Support Page.
+
+Online compilation
+Kernels written in C++ for OpenCL can be compiled online on devices that support the cl_ext_cxx_for_opencl extension.
+
+Libraries
+All OpenCL C builtin library functions are available with C++ for OpenCL.
+
+There is work ongoing to provide C++ based libraries extended from the C++ implementation: see the experimental libraries in clang and libclcxx projects for more details.
+
+Extensions
+All extensions from OpenCL C are available with C++ for OpenCL.
+
+Contributions
+C++ for OpenCL is a community driven open language and contributions are welcome from anyone interested to improve the language compilation in clang or documentation of the language hosted in OpenCL-Docs. Refer to git log or git blame to find relevant contributors to contact or loop in for reviews.
+
+***********************
+Offline Compilation of OpenCL Kernel Sources
+Aside from online compilation during application execution, OpenCL kernel sources can be compiled offline into binaries that can be loaded into the drivers using special API calls (e.g. clCreateProgramWithBinary or clCreateProgramWithIL).
+
+This section describes available open source tools for offline compilation of OpenCL kernels.
+
+Open Source Tools
+clang is a compiler front-end for the C/C++ family of languages, including OpenCL C and C++ for OpenCL. It can produce executable binaries (e.g. AMDGPU), or portable binaries (e.g. SPIR). It is part of the LLVM compiler infrastructure project, and there is information regarding OpenCL kernel language support and standard headers.
+SPIRV-LLVM Translator provides a library and the llvm-spirv tool for bidirectional translation between LLVM IR and SPIR-V.
+clspv compiler and clvk runtime layer enable OpenCL applications to be executed with Vulkan drivers.
+SPIR-V Tools provide a set of utilities to process SPIR-V binaries including spirv-opt optimizer, spirv-link linker, spirv-dis/spirv-as (dis-)assembler, and spirv-val validator.
+Compiling Kernels to SPIR-V
+The open source tools can be used to perform full compilation from OpenCL kernel sources into SPIR-V.
+
+
+<img width="879" height="958" alt="image" src="https://github.com/user-attachments/assets/4aa7a5f9-ff03-4b71-aa76-686ee9e10b95" />
+*****************************
+GPU Architectures and Programming
+By Prof. Soumyajit Dey   |   IIT Kharagpur
+The course covers basics of conventional CPU architectures, their extensions for single instruction multiple data processing (SIMD) and finally the generalization of this concept in the form of single instruction multiple thread processing (SIMT) as is done in modern GPUs. We cover GPU architecture basics in terms of functional units and then dive into the popular CUDA programming model commonly used for GPU programming. In this context, architecture specific details like memory access coalescing, shared memory usage, GPU thread scheduling etc which primarily effect program performance are also covered in detail. We next switch to a different SIMD programming language called OpenCL which can be used for programming both CPUs and GPUs in a generic manner. Throughout the course we provide different architecture-aware optimization techniques relevant to both CUDA and OpenCL. Finally, we provide the students with detail application development examples in two well-known GPU computing scenarios.
+
+INTENDED AUDIENCE  : Computer Science, Electronics, Electrical Engg students
+PREREQUISITES  		: Programming and Data Structure, Digital Logic, Computer architecture
+INDUSTRY SUPPORT	: NVIDIA, AMD, Google, Amazon and most big-data companies
+Summary
+Course Status :	Completed
+Course Type :	Elective
+Language for course content :	English
+Duration :	12 weeks
+Category :	
+Computer Science and Engineering
+Credit Points :	3
+Level :	Undergraduate/Postgraduate
+Start Date :	27 Jan 2020
+End Date :	17 Apr 2020
+Enrollment Ends :	03 Feb 2020
+Exam Date :	26 Apr 2020 IST
+Note: This exam date is subject to change based on seat availability. You can check final exam date on your hall ticket.
+
+FacebookXTeamsLinkedInWhatsAppShare
+
+
+Course layout
+Week 1 :Review of Traditional Computer Architecture – Basic five stage RISC Pipeline, Cache Memory, Register File, SIMD instructions
+Week 2 :GPU architectures - Streaming Multi Processors, Cache Hierarchy,The Graphics Pipeline
+Week 3 :Introduction to CUDA programming
+Week 4 :Multi-dimensional mapping of dataspace, Synchronization
+Week 5 :Warp Scheduling, Divergence
+Week 6 :Memory Access Coalescing
+Week 7 :Optimization examples : optimizing Reduction Kernels
+Week 8 :Optimization examples : Kernel Fusion, Thread and Block
+Week 9 :OpenCL basics
+Week 10 :OpenCL for Heterogeneous Computing
+Week 11-12 :Application Design : Efficient Neural Network Training/Inferencing
+Books and references
+1. “Computer Architecture -- A Quantitative Approach” - John L.Hennessy and David A. Patterson
+2. "Programming Massively Parallel Processors" - David Kirk and Wen-mei Hwu
+3. Heterogeneous Computing with OpenCL” -- Benedict Gaster,Lee Howes, David R. Kaeli
+
+*****************************************
+***********************
