@@ -789,8 +789,12 @@ The open source tools can be used to perform full compilation from OpenCL kernel
 
 
 <img width="879" height="958" alt="image" src="https://github.com/user-attachments/assets/4aa7a5f9-ff03-4b71-aa76-686ee9e10b95" />
+
+**************************************
 *****************************
 GPU Architectures and Programming
+https://onlinecourses.nptel.ac.in/noc20_cs41/preview
+**************************************************
 By Prof. Soumyajit Dey   |   IIT Kharagpur
 The course covers basics of conventional CPU architectures, their extensions for single instruction multiple data processing (SIMD) and finally the generalization of this concept in the form of single instruction multiple thread processing (SIMT) as is done in modern GPUs. We cover GPU architecture basics in terms of functional units and then dive into the popular CUDA programming model commonly used for GPU programming. In this context, architecture specific details like memory access coalescing, shared memory usage, GPU thread scheduling etc which primarily effect program performance are also covered in detail. We next switch to a different SIMD programming language called OpenCL which can be used for programming both CPUs and GPUs in a generic manner. Throughout the course we provide different architecture-aware optimization techniques relevant to both CUDA and OpenCL. Finally, we provide the students with detail application development examples in two well-known GPU computing scenarios.
 
