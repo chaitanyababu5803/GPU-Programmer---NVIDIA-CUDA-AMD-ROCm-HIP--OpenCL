@@ -838,3 +838,93 @@ Books and references
 
 *****************************************
 ***********************
+OpenCL basic project with code
+openCL tutorials basic project with code
+Getting started with OpenCL (Open Computing Language) involves writing two types of code: Host code (runs on your CPU) and Kernel code (runs on your GPU or other accelerators). 
+YouTube
+YouTube
+ +1
+Below is a basic "Vector Addition" project structure and code.
+1. The Kernel Code (vector_add.cl) 
+This is written in OpenCL C and executes in parallel across many threads (work-items). 
+YouTube
+YouTube
+ +4
+c
+__kernel void vector_add(__global const float* A, __global const float* B, __global float* C) {
+    // Get the unique ID for each thread
+    int i = get_global_id(0);
+    
+    // Perform the addition
+    C[i] = A[i] + B[i];
+}
+Use code with caution.
+
+2. The Host Code (main.cpp)
+The host code manages the environment, memory transfers, and kernel execution. 
+Code Project
+Code Project
+ +4
+cpp
+#include <iostream>
+#include <vector>
+#include <CL/cl.h> // Standard OpenCL header
+
+int main() {
+    const int N = 1024;
+    size_t global_size = N;
+    std::vector<float> A(N, 1.0f), B(N, 2.0f), C(N);
+
+    // 1. Get Platform and Device
+    cl_platform_id platform;
+    clGetPlatformIDs(1, &platform, NULL);
+    cl_device_id device;
+    clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 1, &device, NULL);
+
+    // 2. Create Context and Command Queue
+    cl_context context = clCreateContext(NULL, 1, &device, NULL, NULL, NULL);
+    cl_command_queue queue = clCreateCommandQueue(context, device, 0, NULL);
+
+    // 3. Create Buffers on the GPU
+    cl_mem bufA = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(float)*N, A.data(), NULL);
+    cl_mem bufB = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(float)*N, B.data(), NULL);
+    cl_mem bufC = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float)*N, NULL, NULL);
+
+    // 4. Build the Program from Source (Simplification: string literal)
+    const char* kernel_source = "__kernel void vector_add(__global const float* A, __global const float* B, __global float* C) { int i = get_global_id(0); C[i] = A[i] + B[i]; }";
+    cl_program program = clCreateProgramWithSource(context, 1, &kernel_source, NULL, NULL);
+    clBuildProgram(program, 1, &device, NULL, NULL, NULL);
+    cl_kernel kernel = clCreateKernel(program, "vector_add", NULL);
+
+    // 5. Set Arguments and Execute
+    clSetKernelArg(kernel, 0, sizeof(cl_mem), &bufA);
+    clSetKernelArg(kernel, 1, sizeof(cl_mem), &bufB);
+    clSetKernelArg(kernel, 2, sizeof(cl_mem), &bufC);
+    clEnqueueNDRangeKernel(queue, kernel, 1, NULL, &global_size, NULL, 0, NULL, NULL);
+
+    // 6. Read back results
+    clEnqueueReadBuffer(queue, bufC, CL_TRUE, 0, sizeof(float)*N, C.data(), 0, NULL, NULL);
+
+    std::cout << "Result of C[0]: " << C[0] << " (Expected 3.0)" << std::endl;
+
+    // Cleanup
+    clReleaseMemObject(bufA); clReleaseMemObject(bufB); clReleaseMemObject(bufC);
+    clReleaseKernel(kernel); clReleaseProgram(program);
+    clReleaseCommandQueue(queue); clReleaseContext(context);
+    return 0;
+}
+Use code with caution.
+
+3. Setup and Compilation
+To run this, you need an OpenCL SDK (Intel, NVIDIA, or AMD) and the corresponding drivers. 
+GitHub
+GitHub
+ +1
+Windows (MinGW/GCC):
+g++ main.cpp -o vector_add -I"path/to/include" -L"path/to/lib" -lOpenCL
+Linux:
+g++ main.cpp -o vector_add -lOpenCL 
+YouTube
+YouTube
+****************************
+*************************************
