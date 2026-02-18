@@ -431,3 +431,122 @@ In this tutorial, you will modify an existing GPU-accelerated stream-based image
 <img width="1280" height="160" alt="image" src="https://github.com/user-attachments/assets/abe53c06-6d0d-4e7f-a47b-bb42fea20fba" />
 
 ************************************
+************************************************
+BASIC EXMAPLE WITH CODE***************
+Here is a basic "Vector Square" example demonstrating the core concepts of the HIP (Heterogeneous-Compute Interface for Portability) API. This single source code can be compiled to run on both AMD and NVIDIA GPUs. 
+AMD ROCm documentation
+AMD ROCm documentation
+ +1
+HIP Basic Example: Vector Square
+This program allocates memory on both the host (CPU) and device (GPU), copies data, launches a kernel to perform an operation in parallel, and copies the results back. 
+AMD ROCm documentation
+AMD ROCm documentation
+ +1
+cpp
+#include <iostream>
+#include <vector>
+#include "hip/hip_runtime.h"
+
+// Macro to check HIP errors
+#define HIP_CHECK(call) {                                    \
+    hipError_t err = call;                                   \
+    if (err != hipSuccess) {                                 \
+        std::cerr << "HIP error at " << __FILE__ << ":" << __LINE__ << ": " \
+                  << hipGetErrorString(err) << std::endl;    \
+        exit(EXIT_FAILURE);                                  \
+    }                                                        \
+}
+
+/*
+ * The compute kernel: runs on the device (GPU).
+ * __global__ signifies that this function is a kernel and can be called from the host.
+ */
+__global__ void vector_square(double* C_d, double* A_d, int N) {
+    // Calculate the global thread ID
+    int gid = (blockDim.x * blockIdx.x) + threadIdx.x;
+    
+    // Ensure the thread ID is within the bounds of the array
+    if (gid < N) {
+        C_d[gid] = A_d[gid] * A_d[gid];
+    }
+}
+
+int main() {
+    int N = 10000; // Number of elements
+    size_t Nbytes = N * sizeof(double);
+
+    // 1. Allocate host (CPU) memory
+    std::vector<double> A_h(N); // Input array on host
+    std::vector<double> C_h(N); // Output array on host
+
+    // Initialize input data
+    for (int i = 0; i < N; ++i) {
+        A_h[i] = static_cast<double>(i);
+    }
+
+    // 2. Allocate device (GPU) memory
+    double *A_d, *C_d;
+    HIP_CHECK(hipMalloc(&A_d, Nbytes));
+    HIP_CHECK(hipMalloc(&C_d, Nbytes));
+
+    // 3. Copy data from host to device
+    HIP_CHECK(hipMemcpy(A_d, A_h.data(), Nbytes, hipMemcpyHostToDevice));
+
+    // 4. Launch the kernel
+    // Configure launch parameters: blocks and threads per block
+    const unsigned threadsPerBlock = 256;
+    const unsigned blocks = (N + threadsPerBlock - 1) / threadsPerBlock;
+    
+    // hipLaunchKernelGGL is the macro used to launch kernels in HIP
+    hipLaunchKernelGGL(vector_square, dim3(blocks), dim3(threadsPerBlock), 0/*dynamic shared memory*/, 0/*stream*/, C_d, A_d, N);
+    
+    // Check for any errors during kernel execution
+    HIP_CHECK(hipGetLastError());
+
+    // 5. Copy results back from device to host
+    HIP_CHECK(hipMemcpy(C_h.data(), C_d, Nbytes, hipMemcpyDeviceToHost));
+
+    // 6. Verify the results (optional)
+    bool success = true;
+    for (int i = 0; i < N; ++i) {
+        if (C_h[i] != A_h[i] * A_h[i]) {
+            std::cerr << "Verification failed at index " << i << std::endl;
+            success = false;
+            break;
+        }
+    }
+
+    // 7. Free device memory
+    HIP_CHECK(hipFree(A_d));
+    HIP_CHECK(hipFree(C_d));
+
+    if (success) {
+        std::cout << "Program executed successfully! [__SUCCESS__]" << std::endl;
+    } else {
+        std::cout << "Program failed verification." << std::endl;
+    }
+
+    return 0;
+}
+Key HIP Concepts
+__global__: A function type qualifier that indicates the function is a kernel and will execute on the GPU, callable from the CPU (host).
+hipMalloc: Allocates memory on the device (GPU).
+hipMemcpy: Copies data between host and device memory (e.g., hipMemcpyHostToDevice or hipMemcpyDeviceToHost).
+hipLaunchKernelGGL: The macro used to launch a kernel with specific grid and block dimensions.
+blockDim.x, blockIdx.x, threadIdx.x: Built-in variables used within a kernel to determine the unique ID of the current thread.
+hipFree: Frees allocated device memory. 
+GitHub
+GitHub
+ +4
+Compilation
+You can compile this code using the hipcc compiler provided by the AMD ROCm platform: 
+AMD ROCm documentation
+AMD ROCm documentation
+ +1
+bash
+hipcc -o vector_square vector_square.cpp
+./vector_square
+
+***************************
+**************************************
+
